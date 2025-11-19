@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "876006086040",
+    "project_id": "flutter-chess-app-gelo-hipe",
+    "storage_bucket": "flutter-chess-app-gelo-hipe.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:876006086040:android:1ad7993524e5117b33c7ed",
+        "android_client_info": {
+          "package_name": "com.example.flutter_chess_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDX9Y2JM6uXiDyWAij9hLZVYkFtH5ZsX4o"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
