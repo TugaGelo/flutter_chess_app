@@ -37,18 +37,10 @@ packages:
     dependency: "direct main"
     description:
       name: chess
-      sha256: "69dd13135d2ad3fb523483488db811d4aea2e550bfd6454e93ceccaf042a8614"
+      sha256: "6e5a8222931bfb5cd14a4bb9b030c24e257e23957ec3c533fb0ff74a48984ddb"
       url: "https://pub.dev"
     source: hosted
-    version: "0.7.0"
-  chess_vectors_flutter:
-    dependency: "direct main"
-    description:
-      name: chess_vectors_flutter
-      sha256: "5d9d013d2f1340bde1fda15d915262a420f75ff7f1e219860cb364073e5a3456"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.1.0"
+    version: "0.8.1"
   clock:
     dependency: transitive
     description:
@@ -166,14 +158,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "6.0.0"
-  flutter_stateless_chessboard:
-    dependency: "direct main"
-    description:
-      name: flutter_stateless_chessboard
-      sha256: b2872bf6f273eff1cc04c2eaa855a9adeec3997fd1b03f0682f5be679ae60c42
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.1.2"
   flutter_test:
     dependency: "direct dev"
     description: flutter
@@ -184,14 +168,6 @@ packages:
     description: flutter
     source: sdk
     version: "0.0.0"
-  fpdart:
-    dependency: transitive
-    description:
-      name: fpdart
-      sha256: cfeeedd030503c8317868411659cf95c4a204cc3e82d7e9fff2e272aaef12655
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.0.14"
   get:
     dependency: "direct main"
     description:
@@ -272,14 +248,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.17.0"
-  nested:
-    dependency: transitive
-    description:
-      name: nested
-      sha256: "03bac4c528c64c95c722ec99280375a6f2fc708eec17c7b3f07253b626cd2a20"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.0.0"
   path:
     dependency: transitive
     description:
@@ -296,14 +264,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.1.8"
-  provider:
-    dependency: transitive
+  simple_chess_board:
+    dependency: "direct main"
     description:
-      name: provider
-      sha256: "4e82183fa20e5ca25703ead7e05de9e4cceed1fbd1eadc1ac3cb6f565a09f272"
+      name: simple_chess_board
+      sha256: "6a798515b02e5f90be0260dc8bbfecbd34bcc83f68f33031ad5b0d3714c2c512"
       url: "https://pub.dev"
     source: hosted
-    version: "6.1.5+1"
+    version: "1.9.0"
   sky_engine:
     dependency: transitive
     description: flutter
@@ -357,14 +325,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.7.7"
-  tuple:
-    dependency: transitive
-    description:
-      name: tuple
-      sha256: a97ce2013f240b2f3807bcbaf218765b6f301c3eff91092bcfa23a039e7dd151
-      url: "https://pub.dev"
-    source: hosted
-    version: "2.0.2"
   typed_data:
     dependency: transitive
     description:

@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
 import '../controllers/auth_controller.dart';
 import '../controllers/game_controller.dart';
+import '../views/game_view.dart';
 
 class MatchmakingController extends GetxController {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
@@ -54,7 +55,6 @@ class MatchmakingController extends GetxController {
 
     } catch (e) {
       print("Error in matchmaking: $e");
-      Get.snackbar("Error", "Matchmaking failed");
       isSearching.value = false;
     }
   }
@@ -85,6 +85,6 @@ class MatchmakingController extends GetxController {
 
   void _goToGameScreen() {
     isSearching.value = false;
-    Get.snackbar("Success", "Game Started! You are ${GameController.instance.myColor.value}");
+    Get.to(() => const GameView());
   }
 }
