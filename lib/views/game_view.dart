@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:simple_chess_board/simple_chess_board.dart';
 import '../controllers/game_controller.dart';
+import '../widgets/board_overlay.dart';
 
 class GameView extends StatelessWidget {
   const GameView({super.key});
@@ -86,38 +87,64 @@ class GameView extends StatelessWidget {
             }),
           ),
 
+          const SizedBox(height: 10),
+
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.all(8.0),
-              child: Obx(() {
-                final currentFen = controller.displayFen.value.isEmpty
-                    ? 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
-                    : controller.displayFen.value;
-
-                return SimpleChessBoard(
-                  fen: currentFen,
-                  blackSideAtBottom: controller.myColor.value == 'b',
-                  whitePlayerType: PlayerType.human,
-                  blackPlayerType: PlayerType.human,
-                  chessBoardColors: ChessBoardColors(),
-                  cellHighlights: const {},
+              padding: const EdgeInsets.symmetric(horizontal: 8.0),
+              child: Center(
+                child: Obx(() {
+                  final currentFen = controller.displayFen.value.isEmpty
+                      ? 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1'
+                      : controller.displayFen.value;
                   
-                  onPromote: () async => PieceType.queen,
-                  
-                  onMove: ({required ShortMove move}) {
-                    String? promoChar;
-                    if (move.promotion == PieceType.queen) promoChar = 'q';
-                    if (move.promotion == PieceType.rook) promoChar = 'r';
-                    if (move.promotion == PieceType.bishop) promoChar = 'b';
-                    if (move.promotion == PieceType.knight) promoChar = 'n';
+                  bool blackAtBottom = controller.myColor.value == 'b';
 
-                    controller.makeMove(
-                        from: move.from, to: move.to, promotion: promoChar);
-                  },
-                  onPromotionCommited: ({required ShortMove moveDone, required PieceType pieceType}) {},
-                  onTap: ({required String cellCoordinate}) {},
-                );
-              }),
+                  return AspectRatio(
+                    aspectRatio: 1.0,
+                    child: AnimatedContainer(
+                      duration: const Duration(milliseconds: 300),
+                      padding: const EdgeInsets.all(8.0),
+                      
+                      color: controller.isWhiteTurn.value 
+                          ? Colors.grey[300]
+                          : Colors.black,
+                      
+                      child: Stack(
+                        children: [
+                          SimpleChessBoard(
+                            fen: currentFen,
+                            blackSideAtBottom: blackAtBottom,
+                            whitePlayerType: PlayerType.human,
+                            blackPlayerType: PlayerType.human,
+                            
+                            showCoordinatesZone: false, 
+                            
+                            chessBoardColors: ChessBoardColors()
+                              ..lightSquaresColor = const Color(0xFFF0D9B5)
+                              ..darkSquaresColor = const Color(0xFFB58863),
+                            
+                            cellHighlights: const {},
+                            onPromote: () async => PieceType.queen,
+                            onMove: ({required ShortMove move}) {
+                              String? promoChar;
+                              if (move.promotion == PieceType.queen) promoChar = 'q';
+                              if (move.promotion == PieceType.rook) promoChar = 'r';
+                              if (move.promotion == PieceType.bishop) promoChar = 'b';
+                              if (move.promotion == PieceType.knight) promoChar = 'n';
+                              controller.makeMove(from: move.from, to: move.to, promotion: promoChar);
+                            },
+                            onPromotionCommited: ({required ShortMove moveDone, required PieceType pieceType}) {},
+                            onTap: ({required String cellCoordinate}) {},
+                          ),
+
+                          BoardOverlay(isBlackAtBottom: blackAtBottom),
+                        ],
+                      ),
+                    ),
+                  );
+                }),
+              ),
             ),
           ),
           Padding(

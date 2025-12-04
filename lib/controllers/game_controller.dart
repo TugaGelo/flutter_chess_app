@@ -11,7 +11,7 @@ class GameController extends GetxController {
   RxString myColor = ''.obs;
   RxBool isMyTurn = false.obs;
   RxString gameOverMessage = ''.obs;
-  
+  RxBool isWhiteTurn = true.obs; 
   RxString fen = ''.obs; 
 
   RxString displayFen = ''.obs; 
@@ -83,6 +83,7 @@ class GameController extends GetxController {
       }
       
       fen.value = serverFen;
+      isWhiteTurn.value = _chess.turn == chess_lib.Color.WHITE;
       
       isMyTurn.value = (_chess.turn == chess_lib.Color.WHITE && myColor.value == 'w') ||
                        (_chess.turn == chess_lib.Color.BLACK && myColor.value == 'b');
