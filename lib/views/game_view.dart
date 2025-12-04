@@ -28,11 +28,63 @@ class GameView extends StatelessWidget {
       }
     });
 
+    const Color barBgColor = Color(0xFFF0D9B5);
+    const Color barTextColor = Color(0xFF5D4037);
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Flutter Chess App"),
+        title: const Text("Flutter Chess App", style: TextStyle(fontWeight: FontWeight.bold)),
         centerTitle: true,
-        leading: const SizedBox(),
+        automaticallyImplyLeading: false, 
+        
+        backgroundColor: barBgColor,
+        foregroundColor: barTextColor,
+        
+        actions: [
+          IconButton(
+            onPressed: () {
+              Get.defaultDialog(
+                title: "Offer Draw?",
+                titleStyle: const TextStyle(color: barTextColor, fontWeight: FontWeight.bold),
+                middleText: "Declare the game as a draw? (Assuming mutual agreement)",
+                textConfirm: "Declare Draw",
+                textCancel: "Cancel",
+                buttonColor: barTextColor,
+                confirmTextColor: Colors.white,
+                cancelTextColor: barTextColor,
+                onConfirm: () {
+                  Get.back();
+                  controller.declareDraw();
+                }
+              );
+            },
+            icon: const Icon(Icons.handshake),
+            tooltip: "Declare Draw",
+          ),
+
+          IconButton(
+            onPressed: () {
+              Get.defaultDialog(
+                title: "Resign?",
+                titleStyle: const TextStyle(color: barTextColor, fontWeight: FontWeight.bold),
+                middleText: "Are you sure you want to give up?",
+                textConfirm: "Yes, Resign",
+                textCancel: "Cancel",
+                buttonColor: Colors.redAccent,
+                confirmTextColor: Colors.white,
+                cancelTextColor: barTextColor,
+                onConfirm: () {
+                  Get.back(); 
+                  controller.resignGame(); 
+                }
+              );
+            },
+            icon: const Icon(Icons.flag),
+            tooltip: "Resign Game",
+          ),
+          
+          const SizedBox(width: 8),
+        ],
       ),
       body: Column(
         children: [
@@ -229,17 +281,6 @@ class GameView extends StatelessWidget {
                 ),
               ],
             )),
-          ),
-          
-          Obx(() => controller.gameOverMessage.value.isNotEmpty 
-            ? Padding(
-                padding: const EdgeInsets.only(bottom: 20),
-                child: Text(
-                  controller.gameOverMessage.value, 
-                  style: const TextStyle(color: Colors.red, fontSize: 20, fontWeight: FontWeight.bold)
-                ),
-              )
-            : const SizedBox()
           ),
         ],
       ),
