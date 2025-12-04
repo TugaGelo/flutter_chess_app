@@ -33,7 +33,7 @@ class GameView extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text("Flutter Chess App", style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text("Hipe Office Chess App", style: TextStyle(fontWeight: FontWeight.bold)),
         centerTitle: true,
         automaticallyImplyLeading: false, 
         
@@ -46,7 +46,7 @@ class GameView extends StatelessWidget {
               Get.defaultDialog(
                 title: "Offer Draw?",
                 titleStyle: const TextStyle(color: barTextColor, fontWeight: FontWeight.bold),
-                middleText: "Declare the game as a draw? (Assuming mutual agreement)",
+                middleText: "Declare the game as a draw?",
                 textConfirm: "Declare Draw",
                 textCancel: "Cancel",
                 buttonColor: barTextColor,
@@ -59,7 +59,7 @@ class GameView extends StatelessWidget {
               );
             },
             icon: const Icon(Icons.handshake),
-            tooltip: "Declare Draw",
+            tooltip: "Draw",
           ),
 
           IconButton(
@@ -70,7 +70,7 @@ class GameView extends StatelessWidget {
                 middleText: "Are you sure you want to give up?",
                 textConfirm: "Yes, Resign",
                 textCancel: "Cancel",
-                buttonColor: Colors.redAccent,
+                buttonColor: barTextColor,
                 confirmTextColor: Colors.white,
                 cancelTextColor: barTextColor,
                 onConfirm: () {
@@ -80,7 +80,7 @@ class GameView extends StatelessWidget {
               );
             },
             icon: const Icon(Icons.flag),
-            tooltip: "Resign Game",
+            tooltip: "Resign",
           ),
           
           const SizedBox(width: 8),
@@ -193,7 +193,6 @@ class GameView extends StatelessWidget {
                           duration: const Duration(milliseconds: 300),
                           padding: const EdgeInsets.all(8.0),
                           color: controller.isWhiteTurn.value ? Colors.grey[300] : Colors.black,
-                          
                           child: Stack(
                             children: [
                               SimpleChessBoard(
@@ -201,8 +200,8 @@ class GameView extends StatelessWidget {
                                 blackSideAtBottom: blackAtBottom,
                                 whitePlayerType: PlayerType.human,
                                 blackPlayerType: PlayerType.human,
-                                showPossibleMoves: false,
                                 showCoordinatesZone: false, 
+                                showPossibleMoves: false, 
                                 chessBoardColors: ChessBoardColors()..lightSquaresColor = const Color(0xFFF0D9B5)..darkSquaresColor = const Color(0xFFB58863),
                                 
                                 cellHighlights: controller.validMoveHighlights, 
@@ -217,7 +216,6 @@ class GameView extends StatelessWidget {
                                   controller.makeMove(from: move.from, to: move.to, promotion: promoChar);
                                 },
                                 onPromotionCommited: ({required ShortMove moveDone, required PieceType pieceType}) {},
-                                
                                 onTap: ({required String cellCoordinate}) {
                                   controller.onSquareTap(cellCoordinate);
                                 },

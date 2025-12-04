@@ -178,6 +178,17 @@ class GameController extends GetxController {
     fen.value = serverFen;
     isWhiteTurn.value = _chess.turn == chess_lib.Color.WHITE;
 
+    if (_chess.in_check) {
+      String? kingSquare = _findKingSquare(_chess.turn);
+      if (kingSquare != null) {
+        validMoveHighlights[kingSquare] = Colors.red.withOpacity(0.6);
+      }
+    } else {
+      if (_selectedSquare == null) {
+        validMoveHighlights.clear();
+      }
+    }
+
     isMyTurn.value = (_chess.turn == chess_lib.Color.WHITE && myColor.value == 'w') ||
                      (_chess.turn == chess_lib.Color.BLACK && myColor.value == 'b');
   }
@@ -209,7 +220,79 @@ class GameController extends GetxController {
       displayFen.refresh();
     }
   }
+  
+  void onSquareTap(String square) {
+    if (isGameEnded.value) return; 
+    
+    if (validMoveHighlights.containsKey(square) && validMoveHighlights[square] != Colors.red.withOpacity(0.6)) {
+       
+       if (validMoveHighlights[square]!.value == const Color(0xFF81C784).withOpacity(0.6).value) {
+          makeMove(from: _selectedSquare!, to: square);
+          return;
+       }
+    }
 
+    final piece = _chess.get(square);
+    bool isMyPiece = piece != null && 
+                     ((myColor.value == 'w' && piece.color == chess_lib.Color.WHITE) ||
+                      (myColor.value == 'b' && piece.color == chess_lib.Color.BLACK));
+
+    if (isMyPiece) {
+      _selectedSquare = square;
+      final moves = _chess.moves({'square': square, 'verbose': true});
+      final newHighlights = <String, Color>{};
+      
+      if (_chess.in_check) {
+        String? kingSquare = _findKingSquare(_chess.turn);
+        if (kingSquare != null) {
+          newHighlights[kingSquare] = Colors.red.withOpacity(0.6);
+        }
+      }
+
+      newHighlights[square] = const Color(0xFF64B5F6).withOpacity(0.6); 
+      
+      for (var move in moves) {
+        String targetSquare = move['to']; 
+        newHighlights[targetSquare] = const Color(0xFF81C784).withOpacity(0.6); 
+      }
+      
+      validMoveHighlights.value = newHighlights;
+      validMoveHighlights.refresh(); 
+    } else {
+      clearHighlights();
+    }
+  }
+
+  void clearHighlights() {
+    validMoveHighlights.clear();
+    _selectedSquare = null;
+    
+    if (_chess.in_check) {
+      String? kingSquare = _findKingSquare(_chess.turn);
+      if (kingSquare != null) {
+        validMoveHighlights[kingSquare] = Colors.red.withOpacity(0.6);
+      }
+    }
+  }
+  
+  String? _findKingSquare(chess_lib.Color color) {
+    final files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+    final ranks = ['1', '2', '3', '4', '5', '6', '7', '8'];
+    
+    for (var file in files) {
+      for (var rank in ranks) {
+        String square = '$file$rank';
+        final piece = _chess.get(square);
+        if (piece != null && 
+            piece.type == chess_lib.PieceType.KING && 
+            piece.color == color) {
+          return square;
+        }
+      }
+    }
+    return null;
+  }
+  
   Future<void> resignGame() async {
     String winner = myColor.value == 'w' ? 'b' : 'w';
     await _db.collection('games').doc(gameId.value).update({
@@ -335,37 +418,5 @@ class GameController extends GetxController {
       currentMoveIndex.value = target;
       displayFen.value = fenHistory[target];
     }
-  }
-  
-  void onSquareTap(String square) {
-    if (isGameEnded.value) return; 
-    
-    if (validMoveHighlights.containsKey(square)) {
-      makeMove(from: _selectedSquare!, to: square);
-      return;
-    }
-    final piece = _chess.get(square);
-    bool isMyPiece = piece != null && 
-                     ((myColor.value == 'w' && piece.color == chess_lib.Color.WHITE) ||
-                      (myColor.value == 'b' && piece.color == chess_lib.Color.BLACK));
-
-    if (isMyPiece) {
-      _selectedSquare = square;
-      final moves = _chess.moves({'square': square, 'verbose': true});
-      final newHighlights = <String, Color>{};
-      newHighlights[square] = const Color(0xFF64B5F6).withOpacity(0.6); 
-      for (var move in moves) {
-        String targetSquare = move['to']; 
-        newHighlights[targetSquare] = const Color(0xFF81C784).withOpacity(0.6); 
-      }
-      validMoveHighlights.value = newHighlights;
-      validMoveHighlights.refresh(); 
-    } else {
-      clearHighlights();
-    }
-  }
-  void clearHighlights() {
-    validMoveHighlights.clear();
-    _selectedSquare = null;
   }
 }
