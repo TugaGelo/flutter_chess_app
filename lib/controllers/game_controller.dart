@@ -9,10 +9,16 @@ class GameController extends GetxController {
 
   RxString gameId = ''.obs;
   RxString myColor = ''.obs;
-  RxString fen = ''.obs; 
   RxBool isMyTurn = false.obs;
   RxString gameOverMessage = ''.obs;
   
+  RxString fen = ''.obs; 
+
+  RxString displayFen = ''.obs; 
+  RxList<String> fenHistory = <String>[].obs; 
+  RxList<String> moveHistorySan = <String>[].obs;
+  RxInt currentMoveIndex = (-1).obs;
+
   final chess_lib.Chess _chess = chess_lib.Chess();
 
   void setGame(String id, String assignedColor) {
@@ -29,8 +35,32 @@ class GameController extends GetxController {
 
       var data = snapshot.data() as Map<String, dynamic>;
       String serverFen = data['fen'];
+      String serverPgn = data['pgn'] ?? ''; 
       
-      _chess.load(serverFen);
+      if (serverPgn.isNotEmpty) {
+        _chess.load_pgn(serverPgn);
+      } else {
+        _chess.load(serverFen);
+      }
+      
+      if (fenHistory.isEmpty || fenHistory.last != serverFen) {
+        fenHistory.add(serverFen);
+                
+        List<String> pgnMoves = _chess.pgn().split(' ');
+        List<String> cleanMoves = pgnMoves
+            .where((s) => s.isNotEmpty && !s.contains('.')) // Remove "1." etc
+            .toList();
+            
+        moveHistorySan.assignAll(cleanMoves);
+        
+        if (currentMoveIndex.value == fenHistory.length - 2 || currentMoveIndex.value == -1) {
+           jumpToLatest();
+        }
+      }
+
+      if (currentMoveIndex.value == fenHistory.length - 1 || currentMoveIndex.value == -1) {
+          displayFen.value = serverFen;
+      }
       
       fen.value = serverFen;
       
@@ -45,17 +75,44 @@ class GameController extends GetxController {
     });
   }
 
+  void jumpToLatest() {
+    if (fenHistory.isEmpty) return;
+    currentMoveIndex.value = fenHistory.length - 1;
+    displayFen.value = fenHistory.last;
+  }
+
+  void goToPrevious() {
+    if (currentMoveIndex.value > 0) {
+      currentMoveIndex.value--;
+      displayFen.value = fenHistory[currentMoveIndex.value];
+    }
+  }
+
+  void goToNext() {
+    if (currentMoveIndex.value < fenHistory.length - 1) {
+      currentMoveIndex.value++;
+      displayFen.value = fenHistory[currentMoveIndex.value];
+    }
+  }
+
+  void jumpToStart() {
+    if (fenHistory.isNotEmpty) {
+      currentMoveIndex.value = 0;
+      displayFen.value = fenHistory[0];
+    }
+  }
+
   Future<void> makeMove({required String from, required String to, String? promotion}) async {
-    if (!isMyTurn.value) {
-      print("Not my turn!"); 
+    if (currentMoveIndex.value != fenHistory.length - 1) {
+      print("Jump to latest move to play");
       return;
     }
+    
+    if (!isMyTurn.value) return;
 
     try {
       final moveMap = {'from': from, 'to': to};
-      if (promotion != null) {
-        moveMap['promotion'] = promotion;
-      }
+      if (promotion != null) moveMap['promotion'] = promotion;
 
       bool success = _chess.move(moveMap);
       
@@ -65,14 +122,12 @@ class GameController extends GetxController {
           'pgn': _chess.pgn(),
           'lastMove': {'from': from, 'to': to, 'promotion': promotion, 'by': myColor.value}
         });
-        print("Move sent: $from -> $to");
       } else {
-        print("Move rejected by local engine");
-        fen.refresh(); 
+        displayFen.refresh(); 
       }
     } catch (e) {
-      print("Move Error: $e");
-      fen.refresh();
+      print("Move error: $e");
+      displayFen.refresh();
     }
   }
 }
