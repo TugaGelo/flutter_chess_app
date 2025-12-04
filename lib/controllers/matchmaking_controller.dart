@@ -34,7 +34,7 @@ class MatchmakingController extends GetxController {
 
         await _createGameRecord(gameId, gameDoc['white'], myUid);
 
-        GameController.instance.setGame(gameId, 'black');
+        GameController.instance.setGame(gameId, 'b');
         _goToGameScreen();
 
       } else {
@@ -67,7 +67,7 @@ class MatchmakingController extends GetxController {
       
       if (data['status'] == 'playing') {
         print("Player joined! Starting game...");
-        GameController.instance.setGame(docId, 'white');
+        GameController.instance.setGame(docId, 'w');
         _goToGameScreen();
       }
     });

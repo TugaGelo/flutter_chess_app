@@ -15,10 +15,11 @@ class GameController extends GetxController {
   
   final chess_lib.Chess _chess = chess_lib.Chess();
 
-  void setGame(String id, String colorId) {
+  void setGame(String id, String assignedColor) {
     gameId.value = id;
-    myColor.value = (colorId == AuthController.instance.user!.uid) ? 'w' : 'b';
-    print("Game initialized! ID: $id, Color: ${myColor.value}");
+    myColor.value = assignedColor;
+    
+    print("Game initialized! ID: $id, I am playing as: ${myColor.value}");
     _connectToGameStream();
   }
 
