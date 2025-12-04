@@ -45,14 +45,34 @@ class GameController extends GetxController {
       
       if (fenHistory.isEmpty || fenHistory.last != serverFen) {
         fenHistory.add(serverFen);
-                
+        
         List<String> pgnMoves = _chess.pgn().split(' ');
         List<String> cleanMoves = pgnMoves
-            .where((s) => s.isNotEmpty && !s.contains('.')) // Remove "1." etc
+            .where((s) => s.isNotEmpty && !s.contains('.'))
             .toList();
             
-        moveHistorySan.assignAll(cleanMoves);
+        List<String> fancyMoves = [];
+        for (int i = 0; i < cleanMoves.length; i++) {
+          String move = cleanMoves[i];
+          bool isWhiteMove = (i % 2 == 0);
+          
+          if (isWhiteMove) {
+            move = move.replaceAll('K', '♔')
+                       .replaceAll('Q', '♕')
+                       .replaceAll('R', '♖')
+                       .replaceAll('B', '♗')
+                       .replaceAll('N', '♘');
+          } else {
+            move = move.replaceAll('K', '♚')
+                       .replaceAll('Q', '♛')
+                       .replaceAll('R', '♜')
+                       .replaceAll('B', '♝')
+                       .replaceAll('N', '♞');
+          }
+          fancyMoves.add(move);
+        }
         
+        moveHistorySan.assignAll(fancyMoves);
         if (currentMoveIndex.value == fenHistory.length - 2 || currentMoveIndex.value == -1) {
            jumpToLatest();
         }
@@ -99,6 +119,15 @@ class GameController extends GetxController {
     if (fenHistory.isNotEmpty) {
       currentMoveIndex.value = 0;
       displayFen.value = fenHistory[0];
+    }
+  }
+
+  void jumpToMove(int listIndex) {
+    int targetFenIndex = listIndex + 1;
+    
+    if (targetFenIndex < fenHistory.length) {
+      currentMoveIndex.value = targetFenIndex;
+      displayFen.value = fenHistory[targetFenIndex];
     }
   }
 

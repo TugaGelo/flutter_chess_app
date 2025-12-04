@@ -9,6 +9,21 @@ class GameView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final GameController controller = GameController.instance;
+    final ScrollController moveListScrollController = ScrollController();
+
+    ever(controller.currentMoveIndex, (index) {
+      if (moveListScrollController.hasClients && index > 0) {
+        double rowIndex = (index / 2).floorToDouble();
+        double targetOffset = (rowIndex - 1) * 100.0; 
+        if (targetOffset < 0) targetOffset = 0;
+        
+        moveListScrollController.animateTo(
+          targetOffset,
+          duration: const Duration(milliseconds: 300),
+          curve: Curves.easeOut,
+        );
+      }
+    });
 
     return Scaffold(
       appBar: AppBar(
@@ -18,9 +33,57 @@ class GameView extends StatelessWidget {
       ),
       body: Column(
         children: [
-          const Padding(
-            padding: EdgeInsets.symmetric(vertical: 20),
-            child: Icon(Icons.person, size: 40, color: Colors.grey),
+          Container(
+            height: 50, 
+            decoration: BoxDecoration(color: Colors.grey[200]), 
+            child: Obx(() {
+              int pairCount = (controller.moveHistorySan.length / 2).ceil();
+              
+              return ListView.builder(
+                controller: moveListScrollController,
+                scrollDirection: Axis.horizontal,
+                itemCount: pairCount,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                itemBuilder: (context, index) {
+                  int whiteMoveIndex = index * 2;
+                  int blackMoveIndex = (index * 2) + 1;
+                  bool hasBlackMove = blackMoveIndex < controller.moveHistorySan.length;
+
+                  return Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.only(left: 8, right: 4),
+                        child: Text(
+                          "${index + 1}.",
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold, 
+                            color: Colors.grey[700],
+                            fontSize: 16
+                          ),
+                        ),
+                      ),
+
+                      _buildMoveButton(
+                        text: controller.moveHistorySan[whiteMoveIndex],
+                        moveIndex: whiteMoveIndex,
+                        controller: controller
+                      ),
+
+                      if (hasBlackMove) ...[
+                        const SizedBox(width: 4),
+                        _buildMoveButton(
+                          text: controller.moveHistorySan[blackMoveIndex],
+                          moveIndex: blackMoveIndex,
+                          controller: controller
+                        ),
+                      ],
+                      
+                      const SizedBox(width: 12),
+                    ],
+                  );
+                },
+              );
+            }),
           ),
 
           Expanded(
@@ -57,36 +120,6 @@ class GameView extends StatelessWidget {
               }),
             ),
           ),
-
-          SizedBox(
-            height: 50,
-            child: Obx(() => ListView.builder(
-              scrollDirection: Axis.horizontal,
-              itemCount: controller.moveHistorySan.length,
-              padding: const EdgeInsets.symmetric(horizontal: 10),
-              itemBuilder: (context, index) {
-                bool isSelected = index == controller.currentMoveIndex.value - 1;
-
-                return Container(
-                  alignment: Alignment.center,
-                  margin: const EdgeInsets.symmetric(horizontal: 4),
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    color: isSelected ? Colors.brown : Colors.grey[200],
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                  child: Text(
-                    "${index + 1}. ${controller.moveHistorySan[index]}",
-                    style: TextStyle(
-                      color: isSelected ? Colors.white : Colors.black,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                );
-              },
-            )),
-          ),
-
           Padding(
             padding: const EdgeInsets.all(20.0),
             child: Obx(() => Row(
@@ -94,26 +127,22 @@ class GameView extends StatelessWidget {
               children: [
                 IconButton(
                   onPressed: controller.currentMoveIndex.value > 0 
-                      ? controller.jumpToStart 
-                      : null, 
+                      ? controller.jumpToStart : null, 
                   icon: const Icon(Icons.first_page, size: 32),
                 ),
                 IconButton(
                   onPressed: controller.currentMoveIndex.value > 0 
-                      ? controller.goToPrevious 
-                      : null,
+                      ? controller.goToPrevious : null,
                   icon: const Icon(Icons.chevron_left, size: 32),
                 ),
                 IconButton(
                   onPressed: controller.currentMoveIndex.value < controller.fenHistory.length - 1 
-                      ? controller.goToNext 
-                      : null,
+                      ? controller.goToNext : null,
                   icon: const Icon(Icons.chevron_right, size: 32),
                 ),
                 IconButton(
                   onPressed: controller.currentMoveIndex.value < controller.fenHistory.length - 1 
-                      ? controller.jumpToLatest 
-                      : null,
+                      ? controller.jumpToLatest : null,
                   icon: const Icon(Icons.last_page, size: 32),
                 ),
               ],
@@ -123,12 +152,46 @@ class GameView extends StatelessWidget {
           Obx(() => controller.gameOverMessage.value.isNotEmpty 
             ? Padding(
                 padding: const EdgeInsets.only(bottom: 20),
-                child: Text(controller.gameOverMessage.value, style: const TextStyle(color: Colors.red, fontSize: 20, fontWeight: FontWeight.bold)),
+                child: Text(
+                  controller.gameOverMessage.value, 
+                  style: const TextStyle(color: Colors.red, fontSize: 20, fontWeight: FontWeight.bold)
+                ),
               )
             : const SizedBox()
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildMoveButton({
+    required String text, 
+    required int moveIndex, 
+    required GameController controller
+  }) {
+    return Obx(() {
+      bool isSelected = moveIndex == (controller.currentMoveIndex.value - 1);
+
+      return InkWell(
+        onTap: () => controller.jumpToMove(moveIndex),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+          decoration: BoxDecoration(
+            color: isSelected 
+                ? const Color(0xFFb58863)
+                : Colors.transparent,
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Text(
+            text,
+            style: TextStyle(
+              color: isSelected ? Colors.white : Colors.black87,
+              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+              fontSize: 16,
+            ),
+          ),
+        ),
+      );
+    });
   }
 }
