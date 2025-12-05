@@ -22,7 +22,7 @@ class GameView extends StatelessWidget {
         
         moveListScrollController.animateTo(
           targetOffset,
-          duration: const Duration(milliseconds: 200),
+          duration: const Duration(milliseconds: 300),
           curve: Curves.easeOut,
         );
       }
@@ -61,7 +61,6 @@ class GameView extends StatelessWidget {
             icon: const Icon(Icons.handshake),
             tooltip: "Draw",
           ),
-
           IconButton(
             onPressed: () {
               Get.defaultDialog(
@@ -70,7 +69,7 @@ class GameView extends StatelessWidget {
                 middleText: "Are you sure you want to give up?",
                 textConfirm: "Yes, Resign",
                 textCancel: "Cancel",
-                buttonColor: barTextColor,
+                buttonColor: Colors.redAccent,
                 confirmTextColor: Colors.white,
                 cancelTextColor: barTextColor,
                 onConfirm: () {
@@ -190,7 +189,7 @@ class GameView extends StatelessWidget {
                         }
 
                         return AnimatedContainer(
-                          duration: const Duration(milliseconds: 200),
+                          duration: const Duration(milliseconds: 300),
                           padding: const EdgeInsets.all(8.0),
                           color: controller.isWhiteTurn.value ? Colors.grey[300] : Colors.black,
                           child: Stack(
@@ -206,16 +205,49 @@ class GameView extends StatelessWidget {
                                 
                                 cellHighlights: Map.from(controller.validMoveHighlights),
                                 
-                                onPromote: () async => PieceType.queen,
-                                onMove: ({required ShortMove move}) {
-                                  String? promoChar;
-                                  if (move.promotion == PieceType.queen) promoChar = 'q';
-                                  if (move.promotion == PieceType.rook) promoChar = 'r';
-                                  if (move.promotion == PieceType.bishop) promoChar = 'b';
-                                  if (move.promotion == PieceType.knight) promoChar = 'n';
-                                  controller.makeMove(from: move.from, to: move.to, promotion: promoChar);
+                                onPromote: () async {
+                                  bool isWhite = controller.myColor.value == 'w';
+                                  final PieceType? result = await showDialog<PieceType>(
+                                    context: context,
+                                    barrierDismissible: false, 
+                                    builder: (BuildContext context) {
+                                      return SimpleDialog(
+                                        title: const Text('Promote to:', textAlign: TextAlign.center),
+                                        backgroundColor: const Color(0xFFF0D9B5),
+                                        children: [
+                                          Row(
+                                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                                            children: [
+                                              _buildPromoOption(context, PieceType.queen, isWhite ? WhiteQueen() : BlackQueen()),
+                                              _buildPromoOption(context, PieceType.rook, isWhite ? WhiteRook() : BlackRook()),
+                                              _buildPromoOption(context, PieceType.bishop, isWhite ? WhiteBishop() : BlackBishop()),
+                                              _buildPromoOption(context, PieceType.knight, isWhite ? WhiteKnight() : BlackKnight()),
+                                            ],
+                                          )
+                                        ],
+                                      );
+                                    },
+                                  );
+                                  return result ?? PieceType.queen; 
                                 },
-                                onPromotionCommited: ({required ShortMove moveDone, required PieceType pieceType}) {},
+
+                                onMove: ({required ShortMove move}) {
+                                  controller.makeMove(from: move.from, to: move.to);
+                                },
+
+                                onPromotionCommited: ({required ShortMove moveDone, required PieceType pieceType}) {
+                                  String promoChar = 'q';
+                                  if (pieceType == PieceType.rook) promoChar = 'r';
+                                  if (pieceType == PieceType.bishop) promoChar = 'b';
+                                  if (pieceType == PieceType.knight) promoChar = 'n';
+
+                                  controller.makeMove(
+                                      from: moveDone.from, 
+                                      to: moveDone.to, 
+                                      promotion: promoChar
+                                  );
+                                },
+
                                 onTap: ({required String cellCoordinate}) {
                                   controller.onSquareTap(cellCoordinate);
                                 },
@@ -234,7 +266,7 @@ class GameView extends StatelessWidget {
 
                               if (controller.isAnimating.value)
                                 AnimatedPositioned(
-                                  duration: const Duration(milliseconds: 200), 
+                                  duration: const Duration(milliseconds: 300), 
                                   curve: Curves.easeInOut,
                                   top: ghostTop,
                                   left: ghostLeft,
@@ -281,6 +313,20 @@ class GameView extends StatelessWidget {
             )),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildPromoOption(BuildContext context, PieceType type, Widget iconWidget) {
+    return InkWell(
+      onTap: () => Navigator.of(context).pop(type),
+      child: Container(
+        padding: const EdgeInsets.all(8),
+        child: SizedBox(
+          width: 50,
+          height: 50,
+          child: iconWidget,
+        ),
       ),
     );
   }
