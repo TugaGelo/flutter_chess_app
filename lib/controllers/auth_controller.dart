@@ -9,6 +9,8 @@ class AuthController extends GetxController {
   static AuthController instance = Get.find();
   late Rx<User?> _firebaseUser;
   
+  Rxn<model.UserModel> firestoreUser = Rxn<model.UserModel>();
+  
   User? get user => _firebaseUser.value;
 
   @override
@@ -20,12 +22,22 @@ class AuthController extends GetxController {
     ever(_firebaseUser, _setInitialScreen);
   }
 
-  _setInitialScreen(User? user) {
+  _setInitialScreen(User? user) async {
     if (user == null) {
-      print("User is logged out");
       Get.offAll(() => const AuthView());
     } else {
-      print("User is logged in: ${user.email}");
+      try {
+        DocumentSnapshot snap = await FirebaseFirestore.instance
+            .collection('users')
+            .doc(user.uid)
+            .get();
+        
+        firestoreUser.value = model.UserModel.fromSnap(snap);
+        print("User is logged in: ${firestoreUser.value!.username}"); 
+      } catch (e) {
+        print("Error fetching user profile: $e");
+      }
+      
       Get.offAll(() => const LobbyView()); 
     }
   }
@@ -48,6 +60,8 @@ class AuthController extends GetxController {
           .collection('users')
           .doc(cred.user!.uid)
           .set(userModel.toJson());
+      
+      firestoreUser.value = userModel;
 
       Get.snackbar("Success", "Account created successfully!");
       

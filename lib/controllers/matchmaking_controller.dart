@@ -12,6 +12,7 @@ class MatchmakingController extends GetxController {
   Future<void> startMatchmaking() async {
     isSearching.value = true;
     String myUid = AuthController.instance.user!.uid;
+    String myName = AuthController.instance.firestoreUser.value?.username ?? "Unknown";
 
     try {
       var snapshot = await _db.collection('matchmaking')
@@ -23,16 +24,23 @@ class MatchmakingController extends GetxController {
       if (snapshot.docs.isNotEmpty) {
         var gameDoc = snapshot.docs.first;
         String gameId = gameDoc.id;
+        String whiteName = gameDoc['whiteName'] ?? "Opponent";
 
         print("Found game! Joining $gameId");
 
         await _db.collection('matchmaking').doc(gameId).update({
           'status': 'playing',
           'black': myUid,
-          'blackName': AuthController.instance.user!.email,
+          'blackName': myName,
         });
 
-        await _createGameRecord(gameId, gameDoc['white'], myUid);
+        await _createGameRecord(
+            gameId, 
+            gameDoc['white'], 
+            myUid, 
+            whiteName, 
+            myName
+        );
 
         GameController.instance.setGame(gameId, 'b');
         _goToGameScreen();
@@ -43,7 +51,7 @@ class MatchmakingController extends GetxController {
         DocumentReference docRef = await _db.collection('matchmaking').add({
           'createdBy': myUid,
           'white': myUid,
-          'whiteName': AuthController.instance.user!.email,
+          'whiteName': myName,
           'black': '',
           'blackName': '',
           'status': 'waiting',
@@ -73,13 +81,16 @@ class MatchmakingController extends GetxController {
     });
   }
 
-  Future<void> _createGameRecord(String gameId, String whiteId, String blackId) async {
+  Future<void> _createGameRecord(String gameId, String whiteId, String blackId, String whiteName, String blackName) async {
     await _db.collection('games').doc(gameId).set({
       'white': whiteId,
       'black': blackId,
+      'whiteName': whiteName,
+      'blackName': blackName,
       'pgn': '',
       'fen': 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
       'lastMove': null,
+      'date': FieldValue.serverTimestamp(),
     });
   }
 
