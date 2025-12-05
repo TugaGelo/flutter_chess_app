@@ -22,7 +22,7 @@ class GameView extends StatelessWidget {
         
         moveListScrollController.animateTo(
           targetOffset,
-          duration: const Duration(milliseconds: 300),
+          duration: const Duration(milliseconds: 200),
           curve: Curves.easeOut,
         );
       }
@@ -190,7 +190,7 @@ class GameView extends StatelessWidget {
                         }
 
                         return AnimatedContainer(
-                          duration: const Duration(milliseconds: 300),
+                          duration: const Duration(milliseconds: 200),
                           padding: const EdgeInsets.all(8.0),
                           color: controller.isWhiteTurn.value ? Colors.grey[300] : Colors.black,
                           child: Stack(
@@ -204,7 +204,7 @@ class GameView extends StatelessWidget {
                                 showPossibleMoves: false, 
                                 chessBoardColors: ChessBoardColors()..lightSquaresColor = const Color(0xFFF0D9B5)..darkSquaresColor = const Color(0xFFB58863),
                                 
-                                cellHighlights: controller.validMoveHighlights, 
+                                cellHighlights: Map.from(controller.validMoveHighlights),
                                 
                                 onPromote: () async => PieceType.queen,
                                 onMove: ({required ShortMove move}) {
@@ -234,7 +234,7 @@ class GameView extends StatelessWidget {
 
                               if (controller.isAnimating.value)
                                 AnimatedPositioned(
-                                  duration: const Duration(milliseconds: 300), 
+                                  duration: const Duration(milliseconds: 200), 
                                   curve: Curves.easeInOut,
                                   top: ghostTop,
                                   left: ghostLeft,

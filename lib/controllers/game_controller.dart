@@ -136,6 +136,8 @@ class GameController extends GetxController {
   }
 
   void _updateHistoryAndUI(String serverFen) {
+    if (isAnimating.value) return;
+
     if (fenHistory.isEmpty || fenHistory.last != serverFen) {
         fenHistory.add(serverFen);
         
@@ -193,7 +195,7 @@ class GameController extends GetxController {
                      (_chess.turn == chess_lib.Color.BLACK && myColor.value == 'b');
   }
 
-  Future<void> makeMove({required String from, required String to, String? promotion}) async {
+  Future<void> makeMove({required String from, required String to, String? promotion, bool isTap = false}) async {
     if (isGameEnded.value) return; 
     if (currentMoveIndex.value != fenHistory.length - 1) return;
     if (!isMyTurn.value) return;
@@ -206,6 +208,11 @@ class GameController extends GetxController {
       
       if (success) {
         clearHighlights();
+        
+        if (isTap) {
+           await _triggerAnimation(from, to, _chess.fen);
+        }
+
         displayFen.value = _chess.fen; 
         
         await _db.collection('games').doc(gameId.value).update({
@@ -225,9 +232,8 @@ class GameController extends GetxController {
     if (isGameEnded.value) return; 
     
     if (validMoveHighlights.containsKey(square) && validMoveHighlights[square] != Colors.red.withOpacity(0.6)) {
-       
-       if (validMoveHighlights[square]!.value == const Color(0xFF81C784).withOpacity(0.6).value) {
-          makeMove(from: _selectedSquare!, to: square);
+      if (validMoveHighlights[square]!.value == const Color(0xFF81C784).withOpacity(0.6).value) {
+          makeMove(from: _selectedSquare!, to: square, isTap: true);
           return;
        }
     }
@@ -256,8 +262,7 @@ class GameController extends GetxController {
         newHighlights[targetSquare] = const Color(0xFF81C784).withOpacity(0.6); 
       }
       
-      validMoveHighlights.value = newHighlights;
-      validMoveHighlights.refresh(); 
+      validMoveHighlights.assignAll(newHighlights); 
     } else {
       clearHighlights();
     }
