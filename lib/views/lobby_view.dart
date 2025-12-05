@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart'; // Needed for Obx and Get.put
+import 'package:get/get.dart';
 import '../controllers/auth_controller.dart';
-import '../controllers/matchmaking_controller.dart'; // Import the new controller
+import '../controllers/matchmaking_controller.dart'; 
+import 'history_view.dart';
 
 class LobbyView extends StatelessWidget {
   const LobbyView({super.key});
@@ -30,7 +31,7 @@ class LobbyView extends StatelessWidget {
               "Welcome, Grandmaster! ♟️",
               style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 30),
 
             Obx(() => ElevatedButton.icon(
               onPressed: matchmakingController.isSearching.value 
@@ -55,6 +56,20 @@ class LobbyView extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
               ),
             )),
+
+            const SizedBox(height: 16),
+            
+            OutlinedButton.icon(
+              onPressed: () {
+                Get.to(() => const HistoryView());
+              },
+              icon: const Icon(Icons.history, color: Colors.brown),
+              label: const Text("Past Games", style: TextStyle(color: Colors.brown, fontWeight: FontWeight.bold)),
+              style: OutlinedButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
+                side: const BorderSide(color: Colors.brown, width: 2),
+              ),
+            )
           ],
         ),
       ),

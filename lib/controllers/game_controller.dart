@@ -101,8 +101,15 @@ class GameController extends GetxController {
         } else if (_chess.in_checkmate) {
            String winnerColor = _chess.turn == chess_lib.Color.WHITE ? "Black" : "White";
            _showGameOverDialog("$winnerColor Won", "by checkmate");
+           if (winner == null) {
+             _db.collection('games').doc(gameId.value).update({'winner': winnerColor == "White" ? 'w' : 'b'});
+           }
         } else if (_chess.in_draw || _chess.in_stalemate || _chess.in_threefold_repetition) {
            _showGameOverDialog("Draw", "by stalemate or repetition");
+           
+           if (winner == null) {
+             _db.collection('games').doc(gameId.value).update({'winner': 'draw'});
+           }
         }
       }
     });
@@ -126,18 +133,13 @@ class GameController extends GetxController {
       isAnimating.value = true;
       
       await Future.delayed(const Duration(milliseconds: 20));
-      
-      animEndSquare.value = to;
-      
+      animEndSquare.value = to; 
       await Future.delayed(const Duration(milliseconds: 300));
-      
       isAnimating.value = false;
     }
   }
 
   void _updateHistoryAndUI(String serverFen) {
-    if (isAnimating.value) return;
-
     if (fenHistory.isEmpty || fenHistory.last != serverFen) {
         fenHistory.add(serverFen);
         
@@ -231,8 +233,8 @@ class GameController extends GetxController {
   void onSquareTap(String square) {
     if (isGameEnded.value) return; 
     
-    if (validMoveHighlights.containsKey(square) && validMoveHighlights[square] != Colors.red.withOpacity(0.6)) {
-      if (validMoveHighlights[square]!.value == const Color(0xFF81C784).withOpacity(0.6).value) {
+    if (validMoveHighlights.containsKey(square)) {
+       if (validMoveHighlights[square] != Colors.red.withOpacity(0.6)) {
           makeMove(from: _selectedSquare!, to: square, isTap: true);
           return;
        }
@@ -417,6 +419,7 @@ class GameController extends GetxController {
       displayFen.value = fenHistory[0];
     }
   }
+
   void jumpToMove(int index) {
     int target = index + 1;
     if (target < fenHistory.length) {
