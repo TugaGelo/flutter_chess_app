@@ -16,6 +16,7 @@ class LobbyView extends StatelessWidget {
   Widget build(BuildContext context) {
     final MatchmakingController matchmakingController = Get.put(MatchmakingController());
     
+    // Pick a random term
     final ChessTerm dailyTerm = chessTerms[Random().nextInt(chessTerms.length)];
 
     const Color bgBeige = Color(0xFFF0D9B5); 
@@ -28,7 +29,6 @@ class LobbyView extends StatelessWidget {
         backgroundColor: bgBeige,
         foregroundColor: textBrown,
         centerTitle: true,
-        
         leading: IconButton(
           onPressed: () {
             Get.to(() => const HistoryView());
@@ -36,7 +36,6 @@ class LobbyView extends StatelessWidget {
           icon: const Icon(Icons.history),
           tooltip: "Match History",
         ),
-        
         actions: [
           IconButton(
             onPressed: () => AuthController.instance.signOut(),
@@ -46,6 +45,7 @@ class LobbyView extends StatelessWidget {
       ),
       body: Column(
         children: [
+          // 1. THE BOARD
           Expanded(
             flex: 5, 
             child: Container(
@@ -81,6 +81,7 @@ class LobbyView extends StatelessWidget {
             ),
           ),
 
+          // 2. THE LESSON TEXT
           Expanded(
             flex: 2, 
             child: Container(
@@ -120,54 +121,64 @@ class LobbyView extends StatelessWidget {
               children: [
                 SizedBox(
                   width: double.infinity,
-                  child: Obx(() => ElevatedButton.icon(
-                    onPressed: matchmakingController.isSearching.value 
-                        ? null 
-                        : () {
-                            matchmakingController.startMatchmaking();
-                          },
-                    icon: matchmakingController.isSearching.value 
-                        ? const SizedBox(
-                            width: 20, 
-                            height: 20, 
-                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)
-                          )
-                        : const Icon(Icons.play_arrow),
-                    label: Text(
-                      matchmakingController.isSearching.value ? "Searching..." : "Classical",
-                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                    ),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: textBrown,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      elevation: 3,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                  child: Obx(() {
+                    bool isLoadingThis = matchmakingController.searchingMode.value == 'classical';
+                    bool isAnyLoading = matchmakingController.searchingMode.value.isNotEmpty;
+
+                    return ElevatedButton.icon(
+                      onPressed: isAnyLoading 
+                          ? null 
+                          : () => matchmakingController.startMatchmaking('classical'),
+                      
+                      icon: isLoadingThis 
+                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : const Icon(Icons.play_arrow),
+                      
+                      label: Text(
+                        isLoadingThis ? "Searching..." : "Classical",
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                       ),
-                    ),
-                  )),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: textBrown,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        elevation: 3,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                    );
+                  }),
                 ),
 
                 const SizedBox(height: 12),
                 
                 SizedBox(
                   width: double.infinity,
-                  child: ElevatedButton.icon(
-                    onPressed: () {
-                      Get.snackbar("Coming Soon", "Dice Chess logic will be added next!");
-                    },
-                    icon: const Icon(Icons.casino, color: Colors.white),
-                    label: const Text("Dice", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 18)),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFB58863),
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      elevation: 3,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
+                  child: Obx(() {
+                    bool isLoadingThis = matchmakingController.searchingMode.value == 'dice';
+                    bool isAnyLoading = matchmakingController.searchingMode.value.isNotEmpty;
+
+                    return ElevatedButton.icon(
+                      onPressed: isAnyLoading 
+                          ? null 
+                          : () => matchmakingController.startMatchmaking('dice'),
+                      
+                      icon: isLoadingThis 
+                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                          : const Icon(Icons.casino),
+                      
+                      label: Text(
+                        isLoadingThis ? "Searching..." : "Dice",
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                       ),
-                    ),
-                  ),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFB58863),
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 16),
+                        elevation: 3,
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                      ),
+                    );
+                  }),
                 )
               ],
             ),
