@@ -32,8 +32,10 @@ class AuthController extends GetxController {
             .doc(user.uid)
             .get();
         
-        firestoreUser.value = model.UserModel.fromSnap(snap);
-        print("User is logged in: ${firestoreUser.value!.username}"); 
+        if (snap.exists) {
+          firestoreUser.value = model.UserModel.fromSnap(snap);
+          print("User is logged in: ${firestoreUser.value!.username}"); 
+        }
       } catch (e) {
         print("Error fetching user profile: $e");
       }
@@ -41,8 +43,8 @@ class AuthController extends GetxController {
       Get.offAll(() => const LobbyView()); 
     }
   }
-  
-  // SIGN UP
+
+  // SIGN UP FUNCTION
   Future<void> signUp(String username, String email, String password) async {
     try {
       UserCredential cred = await FirebaseAuth.instance.createUserWithEmailAndPassword(
@@ -63,30 +65,29 @@ class AuthController extends GetxController {
       
       firestoreUser.value = userModel;
 
-      Get.snackbar("Success", "Account created successfully!");
+      print("Success: Account created successfully!");
       
     } catch (e) {
-      Get.snackbar("Error Creating Account", e.toString(),
-          snackPosition: SnackPosition.BOTTOM);
+      print("Error Creating Account: $e");
     }
   }
 
-  // SIGN IN
+  // SIGN IN FUNCTION
   Future<void> login(String email, String password) async {
     try {
       await FirebaseAuth.instance.signInWithEmailAndPassword(
         email: email,
         password: password,
       );
-      Get.snackbar("Success", "Welcome back!");
+      print("Success: Welcome back!");
     } catch (e) {
-      Get.snackbar("Login Failed", e.toString(),
-          snackPosition: SnackPosition.BOTTOM);
+      print("Login Failed: $e");
     }
   }
 
-  // SIGN OUT
+  // SIGN OUT FUNCTION
   void signOut() {
     FirebaseAuth.instance.signOut();
+    firestoreUser.value = null; 
   }
 }
