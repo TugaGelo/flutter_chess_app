@@ -1,118 +1,58 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
-import 'dart:math'; 
 import '../controllers/auth_controller.dart';
 import '../controllers/game_controller.dart';
 import '../views/game_view.dart';
 
 class MatchmakingController extends GetxController {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
-  
-  RxString searchingMode = ''.obs;
+  static const String defaultFen = 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1';
 
-  Future<void> startMatchmaking(String gameMode) async {
-    searchingMode.value = gameMode;
-    
+  RxBool isSearching = false.obs;
+
+  Future<void> joinQueue(String mode) async {
+    isSearching.value = true;
     String myUid = AuthController.instance.user!.uid;
-    String myName = AuthController.instance.firestoreUser.value?.username ?? "Unknown";
 
     try {
-      var snapshot = await _db.collection('matchmaking')
+      var snapshot = await _db.collection('games')
           .where('status', isEqualTo: 'waiting')
-          .where('mode', isEqualTo: gameMode)
-          .where('createdBy', isNotEqualTo: myUid)
+          .where('mode', isEqualTo: mode)
           .limit(1)
           .get();
 
       if (snapshot.docs.isNotEmpty) {
-        var gameDoc = snapshot.docs.first;
-        String gameId = gameDoc.id;
-        String whiteName = gameDoc['whiteName'] ?? "Opponent";
-
-        print("Found $gameMode game! Joining $gameId");
-
-        await _db.collection('matchmaking').doc(gameId).update({
-          'status': 'playing',
-          'black': myUid,
-          'blackName': myName,
-        });
-
-        await _createGameRecord(
-            gameId, 
-            gameDoc['white'], 
-            myUid, 
-            whiteName, 
-            myName,
-            gameMode
-        );
-
-        GameController.instance.setGame(gameId, 'b');
-        _goToGameScreen();
-
+        var doc = snapshot.docs.first;
+        if (doc['white'] == myUid) {
+           _startGame(doc.id, 'w');
+           return;
+        }
+        await _db.collection('games').doc(doc.id).update({'black': myUid, 'status': 'playing'});
+        _startGame(doc.id, 'b');
       } else {
-        print("No $gameMode games found. Creating a new room...");
-        
-        DocumentReference docRef = await _db.collection('matchmaking').add({
-          'createdBy': myUid,
-          'white': myUid,
-          'whiteName': myName,
-          'black': '',
-          'blackName': '',
-          'status': 'waiting',
-          'mode': gameMode,
+        var ref = await _db.collection('games').add({
+          'white': myUid, 'black': '', 'status': 'waiting', 'mode': mode,
+          'fen': defaultFen, 'pgn': '', 'moves': [], 'dice': [1,2,3],
           'createdAt': FieldValue.serverTimestamp(),
         });
-
-        _waitForOpponent(docRef.id);
+        _listenForOpponent(ref.id);
       }
-
     } catch (e) {
-      print("Error in matchmaking: $e");
-      searchingMode.value = '';
+      isSearching.value = false;
+      Get.snackbar("Error", "$e");
     }
   }
 
-  void _waitForOpponent(String docId) {
-    _db.collection('matchmaking').doc(docId).snapshots().listen((snapshot) {
-      if (!snapshot.exists) return;
-      var data = snapshot.data() as Map<String, dynamic>;
-      
-      if (data['status'] == 'playing') {
-        print("Player joined! Starting game...");
-        GameController.instance.setGame(docId, 'w');
-        _goToGameScreen();
-      }
+  void _listenForOpponent(String gameId) {
+    _db.collection('games').doc(gameId).snapshots().listen((snap) {
+      if (snap.exists && snap.data()!['status'] == 'playing') _startGame(gameId, 'w');
     });
   }
 
-  Future<void> _createGameRecord(String gameId, String whiteId, String blackId, String whiteName, String blackName, String mode) async {
-    
-    List<int> initialDice = [];
-    if (mode == 'dice') {
-      Random rng = Random();
-      initialDice = [
-        rng.nextInt(6) + 1,
-        rng.nextInt(6) + 1,
-        rng.nextInt(6) + 1
-      ];
-    }
-
-    await _db.collection('games').doc(gameId).set({
-      'white': whiteId,
-      'black': blackId,
-      'whiteName': whiteName,
-      'blackName': blackName,
-      'pgn': '',
-      'fen': 'rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1',
-      'lastMove': null,
-      'date': FieldValue.serverTimestamp(),
-      'mode': mode,
-      'dice': initialDice,
-    });
-  }
-
-  void _goToGameScreen() {
-    searchingMode.value = '';
-    Get.to(() => const GameView());
+  void _startGame(String id, String color) {
+    isSearching.value = false;
+    if (!Get.isRegistered<GameController>()) Get.put(GameController());
+    GameController.instance.setGame(id, color);
+    Get.off(() => const GameView());
   }
 }

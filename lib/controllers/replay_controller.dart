@@ -1,104 +1,125 @@
 import 'package:get/get.dart';
-import 'package:chess/chess.dart' as chess_lib;
+import 'package:bishop/bishop.dart' as bishop;
+import 'package:squares/squares.dart' as squares;
 
 class ReplayController extends GetxController {
-  RxString displayFen = ''.obs;
-  RxList<String> fenHistory = <String>[].obs;
-  RxList<String> moveHistorySan = <String>[].obs;
-  RxInt currentMoveIndex = (-1).obs;
-  
   RxString whiteName = ''.obs;
   RxString blackName = ''.obs;
-  RxString resultText = ''.obs;
+  RxString gameResult = ''.obs;
+  
+  RxList<String> moves = <String>[].obs;
+  List<String> fenHistory = [];
+  RxInt index = (-1).obs;
 
-  final chess_lib.Chess _chess = chess_lib.Chess();
+  late squares.BoardController boardController;
+  late bishop.Game _game;
 
-  void loadGame(Map<String, dynamic> gameData) {
-    _chess.reset();
-    fenHistory.clear();
-    moveHistorySan.clear();
-    currentMoveIndex.value = -1;
+  @override
+  void onInit() {
+    super.onInit();
+    _initGame();
+  }
 
-    whiteName.value = gameData['whiteName'] ?? "Unknown";
-    blackName.value = gameData['blackName'] ?? "Unknown";
-    
-    String pgn = gameData['pgn'] ?? '';
-    
-    fenHistory.add(chess_lib.Chess.DEFAULT_POSITION);
-    displayFen.value = chess_lib.Chess.DEFAULT_POSITION;
+  void _initGame() {
+    _game = bishop.Game(variant: bishop.Variant.standard());
+    fenHistory = [_game.fen];
+    _updateBoardState();
+  }
+
+  void loadGame(Map<String, dynamic> data) {
+    whiteName.value = data['whiteName'] ?? 'White';
+    blackName.value = data['blackName'] ?? 'Black';
+    String pgn = data['pgn'] ?? '';
+
+    moves.clear();
+    index.value = -1;
+    _game = bishop.Game(variant: bishop.Variant.standard());
+    fenHistory = [_game.fen];
 
     if (pgn.isNotEmpty) {
-      _chess.load_pgn(pgn);
-      
-      List<String> pgnMoves = _chess.pgn().split(' ');
-      List<String> cleanMoves = pgnMoves
-          .where((s) => s.isNotEmpty && !s.contains('.'))
-          .toList();
-      
-      List<String> fancyMoves = [];
-      for (int i = 0; i < cleanMoves.length; i++) {
-        String move = cleanMoves[i];
-        bool isWhiteMove = (i % 2 == 0);
-        if (isWhiteMove) {
-          move = move.replaceAll('K', '♔')
-                     .replaceAll('Q', '♕')
-                     .replaceAll('R', '♖')
-                     .replaceAll('B', '♗')
-                     .replaceAll('N', '♘');
-        } else {
-          move = move.replaceAll('K', '♚')
-                     .replaceAll('Q', '♛')
-                     .replaceAll('R', '♜')
-                     .replaceAll('B', '♝')
-                     .replaceAll('N', '♞');
+      try {
+        final fullGame = bishop.gameFromPgn(pgn);
+        final replayGame = bishop.Game(variant: bishop.Variant.standard());
+        
+        for (var historyItem in fullGame.history) {
+          var pgnMove = historyItem.move;
+          
+          var legalMoves = replayGame.generateLegalMoves();
+          try {
+            var matchingMove = legalMoves.firstWhere((m) => 
+              m.from == pgnMove?.from && m.to == pgnMove?.to
+            );
+            
+            String moveString = replayGame.toSan(matchingMove);
+            
+            replayGame.makeMove(matchingMove);
+            fenHistory.add(replayGame.fen);
+            moves.add(moveString);
+            
+          } catch (e) {
+            print("Skipping invalid move in replay");
+          }
         }
-        fancyMoves.add(move);
-      }
-      moveHistorySan.assignAll(fancyMoves);
-
-      final replayChess = chess_lib.Chess();
-      for (var move in cleanMoves) {
-        replayChess.move(move);
-        fenHistory.add(replayChess.fen);
+      } catch (e) {
+        print("PGN Error: $e");
       }
     }
     
-    jumpToStart();
+    _updateBoardState();
   }
 
+  void _updateBoardState() {
+    int dataIndex = index.value + 1;
+    if (dataIndex < 0 || dataIndex >= fenHistory.length) dataIndex = 0;
+    
+    String currentFen = fenHistory[dataIndex];
+
+    boardController = squares.BoardController(
+      state: _createBoardState(currentFen),
+      playState: squares.PlayState.finished,
+      pieceSet: squares.PieceSet.merida(),
+      theme: squares.BoardTheme.brown,
+      onMove: (_) {},
+    );
+    update();
+  }
+
+  squares.BoardState _createBoardState(String fen) {
+    String fenBoard = fen.split(' ')[0];
+    List<String> boardList = [];
+    
+    for (String row in fenBoard.split('/')) {
+      for (int i = 0; i < row.length; i++) {
+        String char = row[i];
+        int? empty = int.tryParse(char);
+        if (empty != null) {
+          boardList.addAll(List.filled(empty, ''));
+        } else {
+          boardList.add(char);
+        }
+      }
+    }
+
+    return squares.BoardState(board: boardList);
+  }
+
+  void next() { 
+    if (index.value < moves.length - 1) { 
+      index++; 
+      _updateBoardState(); 
+    } 
+  }
   
-  void jumpToLatest() {
-    if (fenHistory.isEmpty) return;
-    currentMoveIndex.value = fenHistory.length - 1;
-    displayFen.value = fenHistory.last;
+  void prev() { 
+    if (index.value > -1) { 
+      index--; 
+      _updateBoardState(); 
+    } 
   }
-
-  void goToPrevious() {
-    if (currentMoveIndex.value > 0) {
-      currentMoveIndex.value--;
-      displayFen.value = fenHistory[currentMoveIndex.value];
-    }
-  }
-
-  void goToNext() {
-    if (currentMoveIndex.value < fenHistory.length - 1) {
-      currentMoveIndex.value++;
-      displayFen.value = fenHistory[currentMoveIndex.value];
-    }
-  }
-
-  void jumpToStart() {
-    if (fenHistory.isNotEmpty) {
-      currentMoveIndex.value = 0;
-      displayFen.value = fenHistory[0];
-    }
-  }
-
-  void jumpToMove(int index) {
-    int target = index + 1;
-    if (target < fenHistory.length) {
-      currentMoveIndex.value = target;
-      displayFen.value = fenHistory[target];
-    }
-  }
+  
+  void jumpToStart() { index.value = -1; _updateBoardState(); }
+  void jumpToLatest() { index.value = moves.length - 1; _updateBoardState(); }
+  void goToPrevious() => prev();
+  void goToNext() => next();
+  void jumpToMove(int i) { index.value = i; _updateBoardState(); }
 }

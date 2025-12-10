@@ -17,6 +17,22 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.13.0"
+  badges:
+    dependency: transitive
+    description:
+      name: badges
+      sha256: a7b6bbd60dce418df0db3058b53f9d083c22cdb5132a052145dc267494df0b84
+      url: "https://pub.dev"
+    source: hosted
+    version: "3.1.2"
+  bishop:
+    dependency: "direct main"
+    description:
+      name: bishop
+      sha256: "49739eff3ff06ec44f1660ff06baec6b44bb8926114b5f6bbed96f24d11a98d3"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.4.4"
   boolean_selector:
     dependency: transitive
     description:
@@ -33,14 +49,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.4.0"
-  chess:
-    dependency: "direct main"
-    description:
-      name: chess
-      sha256: "6e5a8222931bfb5cd14a4bb9b030c24e257e23957ec3c533fb0ff74a48984ddb"
-      url: "https://pub.dev"
-    source: hosted
-    version: "0.8.1"
   chess_vectors_flutter:
     dependency: "direct main"
     description:
@@ -97,6 +105,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.8"
+  equatable:
+    dependency: transitive
+    description:
+      name: equatable
+      sha256: "567c64b3cb4cf82397aac55f4f0cbd3ca20d77c6c03bedbc4ceaddc08904aef7"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.0.7"
   fake_async:
     dependency: transitive
     description:
@@ -280,14 +296,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "2.1.8"
-  simple_chess_board:
-    dependency: "direct main"
-    description:
-      name: simple_chess_board
-      sha256: "6a798515b02e5f90be0260dc8bbfecbd34bcc83f68f33031ad5b0d3714c2c512"
-      url: "https://pub.dev"
-    source: hosted
-    version: "1.9.0"
   sky_engine:
     dependency: transitive
     description: flutter
@@ -301,6 +309,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.10.1"
+  squares:
+    dependency: "direct main"
+    description:
+      name: squares
+      sha256: "5496b2907fceab92d1190625847cda51d84bb5a5364bd1af199b82ed2fdbf68e"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.2.1"
   stack_trace:
     dependency: transitive
     description:

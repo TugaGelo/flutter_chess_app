@@ -38,8 +38,8 @@ dependencies:
   firebase_core: ^4.2.1
   firebase_auth: ^6.1.2
   cloud_firestore: ^6.1.0
-  chess: ^0.8.1
-  simple_chess_board: ^1.9.0
+  bishop: ^1.4.4
+  squares: ^1.2.1
   chess_vectors_flutter: ^1.1.0
   intl: ^0.20.2
 
