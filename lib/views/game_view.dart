@@ -35,6 +35,7 @@ class GameView extends StatelessWidget {
       ),
       body: Column(
         children: [
+          // 1. Move History
           Container(
             height: 50,
             color: Colors.grey[200],
@@ -78,10 +79,11 @@ class GameView extends StatelessWidget {
                 child: GetBuilder<GameController>(
                   builder: (ctrl) {
                     return squares.Board(
-                      key: const ValueKey('game_board'),
+                      key: ValueKey("board_${ctrl.fenHistory.length}"),
+                      
                       state: ctrl.boardState,
                       theme: squares.BoardTheme.brown,
-                      pieceSet: squares.PieceSet.merida(),
+                      pieceSet: ctrl.pieceSet,
                       selection: ctrl.selectedSquare.value,
                       
                       markers: ctrl.validMoves.toList(),
@@ -92,7 +94,7 @@ class GameView extends StatelessWidget {
                       ),
 
                       animatePieces: true,
-                      animationDuration: const Duration(milliseconds: 250),
+                      animationDuration: const Duration(milliseconds: 400),
                       
                       onTap: (x) => ctrl.handleTap(x),
                       acceptDrag: (start, end) => ctrl.onUserMove(squares.Move(from: start.from, to: end)),
@@ -104,7 +106,6 @@ class GameView extends StatelessWidget {
             ),
           ),
           
-          // My Dice
           Obx(() => controller.gameMode.value == 'dice' && controller.isMyTurn.value
               ? _DiceRow(dice: controller.currentDice, isWhite: controller.myColor.value == 'w')
               : const SizedBox(height: 10)),

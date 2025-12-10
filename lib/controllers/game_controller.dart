@@ -22,6 +22,7 @@ class GameController extends GetxController {
 
   late bishop.Game game;
   late squares.BoardState boardState;
+  late squares.PieceSet pieceSet;
   
   Rxn<int> selectedSquare = Rxn<int>();
   RxList<int> validMoves = <int>[].obs;
@@ -36,6 +37,7 @@ class GameController extends GetxController {
   @override
   void onInit() {
     super.onInit();
+    pieceSet = squares.PieceSet.merida();
     _initGame();
   }
 
@@ -124,8 +126,6 @@ class GameController extends GetxController {
       selectedSquare.value = square;
       
       String algFrom = _toAlgebraic(square);
-      print("👆 Tapped $algFrom ($square). Calculating moves...");
-
       var moves = game.generateLegalMoves().where((m) {
         String mFrom = game.size.squareName(m.from);
         return mFrom == algFrom;
@@ -136,7 +136,6 @@ class GameController extends GetxController {
         return _fromAlgebraic(mTo);
       }).toList();
 
-      print("✅ Found ${validMoves.length} moves: $validMoves");
       update(); 
     } else {
       if (selectedSquare.value == square) {
@@ -205,9 +204,9 @@ class GameController extends GetxController {
     if (result) {
       lastMoveConfig = { 'from': algFrom, 'to': algTo };
       
-      _updateUi();
       fenHistory.add(game.fen);
       currentMoveIndex.value = fenHistory.length - 1;
+      _updateUi(); 
       _submitMoveToServer(moveString, san);
     } else {
       _updateUi();
@@ -223,8 +222,6 @@ class GameController extends GetxController {
 
       String fromAlg = algMove.substring(0, 2);
       String toAlg = algMove.substring(2, 4);
-
-      print("🚀 Sending move: $san ($algMove)");
 
       await _db.collection('games').doc(gameId.value).update({
         'fen': game.fen, 
@@ -304,25 +301,6 @@ class GameController extends GetxController {
     );
   }
 
-  int _charToPieceType(String char) {
-    switch (char) {
-      case 'q': return 5;
-      case 'r': return 4;
-      case 'b': return 3;
-      case 'n': return 2;
-      default: return 5;
-    }
-  }
-
-  void _checkDiceLegalMoves() {
-    var moves = game.generateLegalMoves();
-    bool found = false;
-    for (var move in moves) {
-      found = true; 
-    }
-    canMakeAnyMove.value = found;
-  }
-  
   String _getPieceName(int type) {
     switch (type) {
       case 1: return "Pawn";
@@ -333,6 +311,19 @@ class GameController extends GetxController {
       case 6: return "King";
       default: return "Piece";
     }
+  }
+
+  void _checkDiceLegalMoves() {
+    var moves = game.generateLegalMoves();
+    bool found = false;
+    for (var move in moves) {
+      int pieceType = game.board[move.from].abs(); 
+      if (currentDice.contains(pieceType)) {
+        found = true;
+        break;
+      }
+    }
+    canMakeAnyMove.value = found;
   }
 
   Future<void> resignGame() async { 
