@@ -1,4 +1,4 @@
-import 'dart:async';
+import 'dart:async'; 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
@@ -33,6 +33,8 @@ class GameController extends GetxController {
   RxList<int> validMoves = <int>[].obs;
   
   Map<String, dynamic>? lastMoveConfig; 
+  
+  bool enableAnimation = true;
 
   List<String> fenHistory = [];
   RxString displayFen = ''.obs; 
@@ -234,10 +236,12 @@ class GameController extends GetxController {
     
     if (result) {
       lastMoveConfig = { 'from': algFrom, 'to': algTo };
+      
       fenHistory.add(game.fen);
       currentMoveIndex.value = fenHistory.length - 1;
       
-      _updateUi();
+      enableAnimation = false;
+      _updateUi(); 
       _submitMoveToServer(moveString, san);
     } else {
       _updateUi();
@@ -279,7 +283,9 @@ class GameController extends GetxController {
     selectedSquare.value = null;
     validMoves.clear();
     lastMoveConfig = null; 
-    boardKey = "history_$index";
+    
+    enableAnimation = false;
+    boardKey = "history_$index"; 
     boardState = _createBoardState(tempGame);
     update();
   }
@@ -288,13 +294,13 @@ class GameController extends GetxController {
   void prevMove() => jumpToMove(currentMoveIndex.value - 1);
   void jumpToLive() {
     currentMoveIndex.value = fenHistory.length - 1;
-    // Restore live FEN
-    game.loadFen(fenHistory.last);
+    bishop.Game liveGame = bishop.Game(variant: bishop.Variant.standard());
+    liveGame.loadFen(fenHistory.last);
     
     lastMoveConfig = null; 
-    
+    enableAnimation = false;
     boardKey = "live";
-    boardState = _createBoardState(game);
+    boardState = _createBoardState(liveGame);
     update(); 
   }
 
@@ -380,16 +386,78 @@ class GameController extends GetxController {
     if (isGameEnded.value) return;
     
     isGameEnded.value = true;
-    _unsubscribeFromGame();
+    _unsubscribeFromGame(); 
 
-    String text = winner == 'draw' ? "Game Drawn" : (winner == 'w' ? "White Won" : "Black Won");
-    Get.defaultDialog(
-      title: "Game Over",
-      middleText: text,
-      textConfirm: "Lobby",
-      onConfirm: () {
-        Get.offAll(() => const LobbyView());
-      },
+    bool isDraw = winner == 'draw';
+    bool iWon = (winner == myColor.value);
+    
+    String title = isDraw ? "Game Drawn" : (iWon ? "You Won!" : "You Lost");
+    IconData icon = isDraw ? Icons.handshake : (iWon ? Icons.emoji_events_rounded : Icons.sentiment_dissatisfied_rounded);
+    Color iconColor = isDraw ? Colors.brown : (iWon ? Colors.amber[700]! : Colors.grey);
+    String message = isDraw ? "Good Game!" : (iWon ? "Congratulations!" : "Better luck next time.");
+
+    Get.dialog(
+      Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        backgroundColor: const Color(0xFFF5F5F5),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 32.0, horizontal: 24.0),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: iconColor.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: Icon(icon, size: 64, color: iconColor),
+              ),
+              const SizedBox(height: 24),
+              
+              Text(
+                title,
+                style: const TextStyle(
+                  fontSize: 28, 
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87
+                ),
+              ),
+              const SizedBox(height: 8),
+              
+              Text(
+                message,
+                style: TextStyle(
+                  fontSize: 16, 
+                  color: Colors.grey[600],
+                  fontStyle: FontStyle.italic
+                ),
+              ),
+              const SizedBox(height: 32),
+              
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Get.offAll(() => const LobbyView()),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF8B4513), // SaddleBrown
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    elevation: 2,
+                  ),
+                  child: const Text(
+                    "Back to Lobby", 
+                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)
+                  ),
+                ),
+              )
+            ],
+          ),
+        ),
+      ),
       barrierDismissible: false,
     );
   }
@@ -442,6 +510,8 @@ class GameController extends GetxController {
            currentMoveIndex.value = fenHistory.length - 1;
         }
         displayFen.value = serverFen;
+        
+        enableAnimation = true;
         _updateUi();
       }
 
