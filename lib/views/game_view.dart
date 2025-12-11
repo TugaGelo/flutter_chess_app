@@ -14,8 +14,12 @@ class GameView extends StatelessWidget {
 
     ever(controller.currentMoveIndex, (index) {
       if (moveListScrollController.hasClients && index > 0) {
+        double itemWidth = 100.0; 
+        double targetScroll = (index / 2) * itemWidth - 100;
+        if (targetScroll < 0) targetScroll = 0;
+        
         moveListScrollController.animateTo(
-          index * 50.0,
+          targetScroll,
           duration: const Duration(milliseconds: 300),
           curve: Curves.easeOut,
         );
@@ -28,6 +32,7 @@ class GameView extends StatelessWidget {
           controller.gameMode.value == 'dice' ? "Dice Chess" : "Classical Chess",
           style: const TextStyle(fontWeight: FontWeight.bold)
         )),
+        centerTitle: true,
         actions: [
           IconButton(icon: const Icon(Icons.handshake), onPressed: controller.declareDraw, tooltip: "Offer Draw"),
           IconButton(icon: const Icon(Icons.flag), onPressed: controller.resignGame, tooltip: "Resign"),
@@ -37,59 +42,70 @@ class GameView extends StatelessWidget {
         children: [
           Container(
             height: 50,
-            color: Colors.grey[200],
-            child: Obx(() => ListView.builder(
-              controller: moveListScrollController,
-              scrollDirection: Axis.horizontal,
-              itemCount: (controller.moveHistorySan.length / 2).ceil(),
-              itemBuilder: (context, index) {
-                int i = index * 2;
-                String whiteMove = controller.moveHistorySan.length > i ? controller.moveHistorySan[i] : '';
-                String blackMove = controller.moveHistorySan.length > i + 1 ? controller.moveHistorySan[i + 1] : '';
-                
-                bool isWhiteActive = (controller.currentMoveIndex.value == i + 1);
-                bool isBlackActive = (controller.currentMoveIndex.value == i + 2);
+            color: const Color(0xFFF5F5F5),
+            child: Obx(() {
+              int currentPly = controller.currentMoveIndex.value;
+              
+              return ListView.builder(
+                controller: moveListScrollController,
+                scrollDirection: Axis.horizontal,
+                itemCount: (controller.moveHistorySan.length / 2).ceil(),
+                itemBuilder: (context, index) {
+                  int i = index * 2;
+                  
+                  String whiteMove = controller.moveHistorySan.length > i ? controller.moveHistorySan[i] : '';
+                  String blackMove = controller.moveHistorySan.length > i + 1 ? controller.moveHistorySan[i + 1] : '';
+                  
+                  bool isWhiteActive = (currentPly == i + 1);
+                  bool isBlackActive = (currentPly == i + 2);
 
-                return Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                  alignment: Alignment.center,
-                  child: Row(
-                    children: [
-                      Text("${index + 1}. ", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: isWhiteActive ? Colors.brown.withOpacity(0.3) : Colors.transparent,
-                          borderRadius: BorderRadius.circular(4),
+                  return Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12.0),
+                    alignment: Alignment.center,
+                    child: Row(
+                      children: [
+                        Text("${index + 1}. ", style: TextStyle(fontWeight: FontWeight.bold, color: Colors.grey[600])),
+                        
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: isWhiteActive ? const Color(0xFFF0D9B5) : Colors.transparent,
+                            borderRadius: BorderRadius.circular(4),
+                            border: isWhiteActive ? Border.all(color: Colors.brown, width: 1.5) : null,
+                          ),
+                          child: Text(
+                            whiteMove, 
+                            style: TextStyle(
+                              fontWeight: isWhiteActive ? FontWeight.bold : FontWeight.normal,
+                              color: isWhiteActive ? Colors.brown[900] : Colors.black87
+                            )
+                          ),
                         ),
-                        child: Text(
-                          whiteMove, 
-                          style: TextStyle(
-                            fontWeight: isWhiteActive ? FontWeight.bold : FontWeight.normal,
-                            color: Colors.black
-                          )
-                        ),
-                      ),
-                      const SizedBox(width: 4),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: isBlackActive ? Colors.brown.withOpacity(0.3) : Colors.transparent,
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          blackMove, 
-                          style: TextStyle(
-                            fontWeight: isBlackActive ? FontWeight.bold : FontWeight.normal,
-                            color: Colors.black
-                          )
-                        ),
-                      ),
-                    ],
-                  ),
-                );
-              },
-            )),
+                        
+                        const SizedBox(width: 4),
+                        
+                        if (blackMove.isNotEmpty)
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                            decoration: BoxDecoration(
+                              color: isBlackActive ? const Color(0xFFF0D9B5) : Colors.transparent,
+                              borderRadius: BorderRadius.circular(4),
+                              border: isBlackActive ? Border.all(color: Colors.brown, width: 1.5) : null,
+                            ),
+                            child: Text(
+                              blackMove, 
+                              style: TextStyle(
+                                fontWeight: isBlackActive ? FontWeight.bold : FontWeight.normal,
+                                color: isBlackActive ? Colors.brown[900] : Colors.black87
+                              )
+                            ),
+                          ),
+                      ],
+                    ),
+                  );
+                },
+              );
+            }),
           ),
 
           Obx(() => controller.gameMode.value == 'dice' && !controller.isMyTurn.value
@@ -103,7 +119,7 @@ class GameView extends StatelessWidget {
                 child: GetBuilder<GameController>(
                   builder: (ctrl) {
                     return squares.Board(
-                      key: ValueKey(ctrl.boardKey),
+                      key: ValueKey("board_${ctrl.fenHistory.length}"),
                       
                       state: ctrl.boardState,
                       theme: squares.BoardTheme.brown,
@@ -117,7 +133,7 @@ class GameView extends StatelessWidget {
                       ),
 
                       animatePieces: true,
-                      animationDuration: const Duration(milliseconds: 200),
+                      animationDuration: const Duration(milliseconds: 300),
                       
                       onTap: (x) => ctrl.handleTap(x),
                       acceptDrag: (start, end) => ctrl.onUserMove(squares.Move(from: start.from, to: end)),
@@ -129,12 +145,10 @@ class GameView extends StatelessWidget {
             ),
           ),
           
-          // 4. My Dice
           Obx(() => controller.gameMode.value == 'dice' && controller.isMyTurn.value
               ? _DiceRow(dice: controller.currentDice, isWhite: controller.myColor.value == 'w')
               : const SizedBox(height: 10)),
 
-          // 5. Navigation Controls
           Container(
             padding: const EdgeInsets.symmetric(vertical: 10),
             color: Colors.grey[100],
