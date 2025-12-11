@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
@@ -11,6 +12,8 @@ import 'package:chess_vectors_flutter/chess_vectors_flutter.dart';
 class GameController extends GetxController {
   static GameController instance = Get.find();
   final FirebaseFirestore _db = FirebaseFirestore.instance;
+
+  StreamSubscription<DocumentSnapshot>? _gameSubscription;
 
   RxString gameId = ''.obs;
   RxString myColor = ''.obs;
@@ -43,11 +46,24 @@ class GameController extends GetxController {
     _initGame();
   }
 
+  @override
+  void onClose() {
+    _unsubscribeFromGame();
+    super.onClose();
+  }
+
+  void _unsubscribeFromGame() {
+    if (_gameSubscription != null) {
+      _gameSubscription!.cancel();
+      _gameSubscription = null;
+    }
+  }
+
   void _initGame([String? fen]) {
     game = bishop.Game(variant: bishop.Variant.standard());
     if (fen != null) game.loadFen(fen);
 
-    _updateUi(); // Initializes state and key
+    _updateUi();
     
     fenHistory = [game.fen];
     displayFen.value = game.fen;
@@ -263,8 +279,6 @@ class GameController extends GetxController {
     selectedSquare.value = null;
     validMoves.clear();
     lastMoveConfig = null; 
-    
-    game = tempGame;
     boardKey = "history_$index";
     boardState = _createBoardState(tempGame);
     update();
@@ -274,13 +288,13 @@ class GameController extends GetxController {
   void prevMove() => jumpToMove(currentMoveIndex.value - 1);
   void jumpToLive() {
     currentMoveIndex.value = fenHistory.length - 1;
-    bishop.Game liveGame = bishop.Game(variant: bishop.Variant.standard());
-    liveGame.loadFen(fenHistory.last);
+    // Restore live FEN
+    game.loadFen(fenHistory.last);
     
     lastMoveConfig = null; 
     
     boardKey = "live";
-    boardState = _createBoardState(liveGame);
+    boardState = _createBoardState(game);
     update(); 
   }
 
@@ -363,27 +377,38 @@ class GameController extends GetxController {
   }
   
   void _handleGameOver(String winner) {
+    if (isGameEnded.value) return;
+    
     isGameEnded.value = true;
+    _unsubscribeFromGame();
+
     String text = winner == 'draw' ? "Game Drawn" : (winner == 'w' ? "White Won" : "Black Won");
     Get.defaultDialog(
       title: "Game Over",
       middleText: text,
       textConfirm: "Lobby",
-      onConfirm: () => Get.offAll(() => const LobbyView()),
+      onConfirm: () {
+        Get.offAll(() => const LobbyView());
+      },
+      barrierDismissible: false,
     );
   }
 
   void setGame(String id, String assignedColor) {
+    _unsubscribeFromGame();
+    
     gameId.value = id;
     myColor.value = assignedColor; 
     isGameEnded.value = false;
     lastMoveConfig = null;
-    _updateUi(); 
+    
+    _initGame(); 
+    
     _connectToGameStream();
   }
 
   void _connectToGameStream() {
-    _db.collection('games').doc(gameId.value).snapshots().listen((snapshot) async {
+    _gameSubscription = _db.collection('games').doc(gameId.value).snapshots().listen((snapshot) async {
       if (!snapshot.exists) return;
       var data = snapshot.data() as Map<String, dynamic>;
       
