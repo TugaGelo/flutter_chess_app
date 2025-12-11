@@ -24,6 +24,8 @@ class GameController extends GetxController {
   late squares.BoardState boardState;
   late squares.PieceSet pieceSet;
   
+  String boardKey = "";
+  
   Rxn<int> selectedSquare = Rxn<int>();
   RxList<int> validMoves = <int>[].obs;
   
@@ -45,7 +47,7 @@ class GameController extends GetxController {
     game = bishop.Game(variant: bishop.Variant.standard());
     if (fen != null) game.loadFen(fen);
 
-    boardState = _createBoardState(game);
+    _updateUi(); // Initializes state and key
     
     fenHistory = [game.fen];
     displayFen.value = game.fen;
@@ -107,6 +109,7 @@ class GameController extends GetxController {
   }
 
   void _updateUi() {
+    boardKey = DateTime.now().millisecondsSinceEpoch.toString();
     boardState = _createBoardState(game);
     update();
   }
@@ -115,43 +118,55 @@ class GameController extends GetxController {
     if (currentMoveIndex.value != fenHistory.length - 1) return;
     if (!isMyTurn.value) return;
 
-    if (selectedSquare.value == null) {
-      String piece = boardState.board[square];
-      if (piece.isEmpty) return;
-      
+    String piece = boardState.board[square];
+    bool isOwnPiece = false;
+    if (piece.isNotEmpty) {
       bool isWhitePiece = piece == piece.toUpperCase();
-      if (myColor.value == 'w' && !isWhitePiece) return;
-      if (myColor.value == 'b' && isWhitePiece) return;
+      isOwnPiece = (myColor.value == 'w' && isWhitePiece) || 
+                   (myColor.value == 'b' && !isWhitePiece);
+    }
 
-      selectedSquare.value = square;
-      
-      String algFrom = _toAlgebraic(square);
-      var moves = game.generateLegalMoves().where((m) {
-        String mFrom = game.size.squareName(m.from);
-        return mFrom == algFrom;
-      });
-      
-      validMoves.value = moves.map((m) {
-        String mTo = game.size.squareName(m.to);
-        return _fromAlgebraic(mTo);
-      }).toList();
-
-      update(); 
-    } else {
+    if (selectedSquare.value != null) {
       if (selectedSquare.value == square) {
         selectedSquare.value = null;
         validMoves.clear();
         update();
-      } else {
-        onUserMove(squares.Move(from: selectedSquare.value!, to: square));
+        return;
+      }
+
+      if (isOwnPiece) {
+        selectedSquare.value = square;
+        _calculateValidMoves(square);
+        update();
+        return;
+      }
+      
+      onUserMove(squares.Move(from: selectedSquare.value!, to: square));
+    } else {
+      if (isOwnPiece) {
+        selectedSquare.value = square;
+        _calculateValidMoves(square);
+        update();
       }
     }
+  }
+
+  void _calculateValidMoves(int square) {
+    String algFrom = _toAlgebraic(square);
+    var moves = game.generateLegalMoves().where((m) {
+      String mFrom = game.size.squareName(m.from);
+      return mFrom == algFrom;
+    });
+    
+    validMoves.value = moves.map((m) {
+      String mTo = game.size.squareName(m.to);
+      return _fromAlgebraic(mTo);
+    }).toList();
   }
 
   void onUserMove(squares.Move move) async {
     selectedSquare.value = null;
     validMoves.clear();
-    update();
 
     if (currentMoveIndex.value != fenHistory.length - 1) return;
     if (!isMyTurn.value) return;
@@ -203,10 +218,10 @@ class GameController extends GetxController {
     
     if (result) {
       lastMoveConfig = { 'from': algFrom, 'to': algTo };
-      
       fenHistory.add(game.fen);
       currentMoveIndex.value = fenHistory.length - 1;
-      _updateUi(); 
+      
+      _updateUi();
       _submitMoveToServer(moveString, san);
     } else {
       _updateUi();
@@ -245,7 +260,12 @@ class GameController extends GetxController {
     bishop.Game tempGame = bishop.Game(variant: bishop.Variant.standard());
     tempGame.loadFen(fenHistory[index]);
     
+    selectedSquare.value = null;
+    validMoves.clear();
     lastMoveConfig = null; 
+    
+    game = tempGame;
+    boardKey = "history_$index";
     boardState = _createBoardState(tempGame);
     update();
   }
@@ -254,7 +274,14 @@ class GameController extends GetxController {
   void prevMove() => jumpToMove(currentMoveIndex.value - 1);
   void jumpToLive() {
     currentMoveIndex.value = fenHistory.length - 1;
-    _updateUi(); 
+    bishop.Game liveGame = bishop.Game(variant: bishop.Variant.standard());
+    liveGame.loadFen(fenHistory.last);
+    
+    lastMoveConfig = null; 
+    
+    boardKey = "live";
+    boardState = _createBoardState(liveGame);
+    update(); 
   }
 
   int _symbolToType(String symbol) {
@@ -267,6 +294,19 @@ class GameController extends GetxController {
       case 'k': return 6;
       default: return 0;
     }
+  }
+
+  void _checkDiceLegalMoves() {
+    var moves = game.generateLegalMoves();
+    bool found = false;
+    for (var move in moves) {
+      int pieceType = game.board[move.from].abs(); 
+      if (currentDice.contains(pieceType)) {
+        found = true;
+        break;
+      }
+    }
+    canMakeAnyMove.value = found;
   }
 
   Future<String?> _showPromotionDialog() async {
@@ -311,19 +351,6 @@ class GameController extends GetxController {
       case 6: return "King";
       default: return "Piece";
     }
-  }
-
-  void _checkDiceLegalMoves() {
-    var moves = game.generateLegalMoves();
-    bool found = false;
-    for (var move in moves) {
-      int pieceType = game.board[move.from].abs(); 
-      if (currentDice.contains(pieceType)) {
-        found = true;
-        break;
-      }
-    }
-    canMakeAnyMove.value = found;
   }
 
   Future<void> resignGame() async { 

@@ -35,7 +35,6 @@ class GameView extends StatelessWidget {
       ),
       body: Column(
         children: [
-          // 1. Move History
           Container(
             height: 50,
             color: Colors.grey[200],
@@ -48,20 +47,45 @@ class GameView extends StatelessWidget {
                 String whiteMove = controller.moveHistorySan.length > i ? controller.moveHistorySan[i] : '';
                 String blackMove = controller.moveHistorySan.length > i + 1 ? controller.moveHistorySan[i + 1] : '';
                 
-                int currentPairIndex = (controller.currentMoveIndex.value + 1) ~/ 2;
-                bool isCurrent = (index + 1) == currentPairIndex;
+                bool isWhiteActive = (controller.currentMoveIndex.value == i + 1);
+                bool isBlackActive = (controller.currentMoveIndex.value == i + 2);
 
                 return Container(
                   padding: const EdgeInsets.symmetric(horizontal: 12.0),
-                  color: isCurrent ? Colors.brown.withOpacity(0.2) : Colors.transparent,
-                  child: Center(
-                    child: Text(
-                      "${index + 1}. $whiteMove $blackMove", 
-                      style: TextStyle(
-                        fontWeight: FontWeight.bold, 
-                        color: isCurrent ? Colors.brown[800] : Colors.black
-                      )
-                    )
+                  alignment: Alignment.center,
+                  child: Row(
+                    children: [
+                      Text("${index + 1}. ", style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.grey)),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: isWhiteActive ? Colors.brown.withOpacity(0.3) : Colors.transparent,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          whiteMove, 
+                          style: TextStyle(
+                            fontWeight: isWhiteActive ? FontWeight.bold : FontWeight.normal,
+                            color: Colors.black
+                          )
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: isBlackActive ? Colors.brown.withOpacity(0.3) : Colors.transparent,
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          blackMove, 
+                          style: TextStyle(
+                            fontWeight: isBlackActive ? FontWeight.bold : FontWeight.normal,
+                            color: Colors.black
+                          )
+                        ),
+                      ),
+                    ],
                   ),
                 );
               },
@@ -79,7 +103,7 @@ class GameView extends StatelessWidget {
                 child: GetBuilder<GameController>(
                   builder: (ctrl) {
                     return squares.Board(
-                      key: ValueKey("board_${ctrl.fenHistory.length}"),
+                      key: ValueKey(ctrl.boardKey),
                       
                       state: ctrl.boardState,
                       theme: squares.BoardTheme.brown,
@@ -87,14 +111,13 @@ class GameView extends StatelessWidget {
                       selection: ctrl.selectedSquare.value,
                       
                       markers: ctrl.validMoves.toList(),
-                      
                       markerTheme: squares.MarkerTheme(
                         empty: squares.MarkerTheme.dot,
                         piece: squares.MarkerTheme.corners(), 
                       ),
 
                       animatePieces: true,
-                      animationDuration: const Duration(milliseconds: 400),
+                      animationDuration: const Duration(milliseconds: 200),
                       
                       onTap: (x) => ctrl.handleTap(x),
                       acceptDrag: (start, end) => ctrl.onUserMove(squares.Move(from: start.from, to: end)),
@@ -106,10 +129,12 @@ class GameView extends StatelessWidget {
             ),
           ),
           
+          // 4. My Dice
           Obx(() => controller.gameMode.value == 'dice' && controller.isMyTurn.value
               ? _DiceRow(dice: controller.currentDice, isWhite: controller.myColor.value == 'w')
               : const SizedBox(height: 10)),
 
+          // 5. Navigation Controls
           Container(
             padding: const EdgeInsets.symmetric(vertical: 10),
             color: Colors.grey[100],
