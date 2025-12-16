@@ -5,6 +5,7 @@ import 'package:chess/chess.dart' as chess_lib;
 import 'dart:math';
 import '../controllers/auth_controller.dart';
 import '../views/lobby_view.dart';
+import 'package:chess_vectors_flutter/chess_vectors_flutter.dart';
 
 class GameController extends GetxController {
   static GameController instance = Get.find();
@@ -267,6 +268,11 @@ class GameController extends GetxController {
       }
     }
 
+    if (promotion == null && _isPromotion(from, to)) {
+      promotion = await pickPromotionCharacter();
+      if (promotion == null) return;
+    }
+
     try {
       final moveMap = {'from': from, 'to': to};
       if (promotion != null) moveMap['promotion'] = promotion;
@@ -301,6 +307,48 @@ class GameController extends GetxController {
     } catch (e) {
       displayFen.refresh();
     }
+  }
+
+  bool _isPromotion(String from, String to) {
+    final piece = _chess.get(from);
+    if (piece == null || piece.type != chess_lib.PieceType.PAWN) return false;
+    
+    if (piece.color == chess_lib.Color.WHITE && to.endsWith('8')) return true;
+    if (piece.color == chess_lib.Color.BLACK && to.endsWith('1')) return true;
+    
+    return false;
+  }
+
+  Future<String?> pickPromotionCharacter() async {
+    bool isWhite = myColor.value == 'w';
+    return await Get.dialog<String>(
+      SimpleDialog(
+        title: const Text('Promote to:', textAlign: TextAlign.center),
+        backgroundColor: const Color(0xFFF0D9B5),
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+            children: [
+              _promoOption('q', isWhite ? WhiteQueen() : BlackQueen()),
+              _promoOption('r', isWhite ? WhiteRook() : BlackRook()),
+              _promoOption('b', isWhite ? WhiteBishop() : BlackBishop()),
+              _promoOption('n', isWhite ? WhiteKnight() : BlackKnight()),
+            ],
+          )
+        ],
+      ),
+      barrierDismissible: false,
+    );
+  }
+
+  Widget _promoOption(String char, Widget icon) {
+    return InkWell(
+      onTap: () => Get.back(result: char),
+      child: Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: SizedBox(width: 50, height: 50, child: icon),
+      ),
+    );
   }
 
   Future<void> passTurn() async {

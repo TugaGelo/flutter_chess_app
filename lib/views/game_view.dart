@@ -210,44 +210,40 @@ class GameView extends StatelessWidget {
                                 showPossibleMoves: false,
                                 chessBoardColors: ChessBoardColors()..lightSquaresColor = const Color(0xFFF0D9B5)..darkSquaresColor = const Color(0xFFB58863),
                                 cellHighlights: Map.from(controller.validMoveHighlights),
+                                
+                                // 🟢 PROMOTION FIX
                                 onPromote: () async {
-                                  bool isWhite = controller.myColor.value == 'w';
-                                  final PieceType? result = await showDialog<PieceType>(
-                                    context: context,
-                                    barrierDismissible: false,
-                                    builder: (BuildContext context) {
-                                      return SimpleDialog(
-                                        title: const Text('Promote to:', textAlign: TextAlign.center),
-                                        backgroundColor: const Color(0xFFF0D9B5),
-                                        children: [
-                                          Row(
-                                            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                                            children: [
-                                              _buildPromoOption(context, PieceType.queen, isWhite ? WhiteQueen() : BlackQueen()),
-                                              _buildPromoOption(context, PieceType.rook, isWhite ? WhiteRook() : BlackRook()),
-                                              _buildPromoOption(context, PieceType.bishop, isWhite ? WhiteBishop() : BlackBishop()),
-                                              _buildPromoOption(context, PieceType.knight, isWhite ? WhiteKnight() : BlackKnight()),
-                                            ],
-                                          )
-                                        ],
-                                      );
-                                    },
-                                  );
-                                  return result ?? PieceType.queen;
+                                  // Show dialog via controller
+                                  String? char = await controller.pickPromotionCharacter();
+                                  
+                                  // Map string back to PieceType for the library
+                                  if (char == null) return null; // Cancel
+                                  switch (char) {
+                                    case 'q': return PieceType.queen;
+                                    case 'r': return PieceType.rook;
+                                    case 'b': return PieceType.bishop;
+                                    case 'n': return PieceType.knight;
+                                    default: return PieceType.queen;
+                                  }
+                                },
+                                onPromotionCommited: ({required ShortMove moveDone, required PieceType pieceType}) {
+                                  // Convert PieceType back to char
+                                  String char = 'q';
+                                  if (pieceType == PieceType.rook) char = 'r';
+                                  if (pieceType == PieceType.bishop) char = 'b';
+                                  if (pieceType == PieceType.knight) char = 'n';
+                                  
+                                  // Execute the logic
+                                  controller.makeMove(from: moveDone.from, to: moveDone.to, promotion: char);
                                 },
                                 onMove: ({required ShortMove move}) {
-                                  String? promoChar;
-                                  if (move.promotion == PieceType.queen) promoChar = 'q';
-                                  if (move.promotion == PieceType.rook) promoChar = 'r';
-                                  if (move.promotion == PieceType.bishop) promoChar = 'b';
-                                  if (move.promotion == PieceType.knight) promoChar = 'n';
-                                  controller.makeMove(from: move.from, to: move.to, promotion: promoChar);
+                                  controller.makeMove(from: move.from, to: move.to);
                                 },
-                                onPromotionCommited: ({required ShortMove moveDone, required PieceType pieceType}) {},
                                 onTap: ({required String cellCoordinate}) {
                                   controller.onSquareTap(cellCoordinate);
                                 },
                               ),
+                              
                               if (controller.isAnimating.value)
                                 Positioned(
                                   top: maskTop,
@@ -408,20 +404,6 @@ class GameView extends StatelessWidget {
     }
   }
   
-  Widget _buildPromoOption(BuildContext context, PieceType type, Widget iconWidget) {
-    return InkWell(
-      onTap: () => Navigator.of(context).pop(type),
-      child: Container(
-        padding: const EdgeInsets.all(8),
-        child: SizedBox(
-          width: 50,
-          height: 50,
-          child: iconWidget,
-        ),
-      ),
-    );
-  }
-
   Widget _getPieceWidget(String char) {
     switch (char) {
       case 'P': return WhitePawn();
