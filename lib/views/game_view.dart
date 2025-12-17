@@ -220,10 +220,8 @@ class GameView extends StatelessWidget {
                                 showPossibleMoves: false,
                                 chessBoardColors: ChessBoardColors()..lightSquaresColor = const Color(0xFFF0D9B5)..darkSquaresColor = const Color(0xFFB58863),
                                 cellHighlights: Map.from(controller.validMoveHighlights),
-                                
                                 onPromote: () async {
                                   String? char = await controller.pickPromotionCharacter();
-                                  
                                   if (char == null) return null;
                                   switch (char) {
                                     case 'q': return PieceType.queen;
@@ -238,7 +236,6 @@ class GameView extends StatelessWidget {
                                   if (pieceType == PieceType.rook) char = 'r';
                                   if (pieceType == PieceType.bishop) char = 'b';
                                   if (pieceType == PieceType.knight) char = 'n';
-                                  
                                   controller.makeMove(from: moveDone.from, to: moveDone.to, promotion: char);
                                 },
                                 onMove: ({required ShortMove move}) {
@@ -444,7 +441,7 @@ class GameView extends StatelessWidget {
     return Obx(() {
       bool isSelected = moveIndex == (controller.currentMoveIndex.value - 1);
       
-      if (text == "Pass" || text.contains('/')) {
+      if (text == "Pass") {
         return Container(
            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
            decoration: BoxDecoration(
@@ -469,7 +466,7 @@ class GameView extends StatelessWidget {
       }
 
       return InkWell(
-        onTap: () => controller.jumpToMove(moveIndex),
+        onTap: () {},
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
           decoration: BoxDecoration(
@@ -483,7 +480,7 @@ class GameView extends StatelessWidget {
             style: TextStyle(
               color: isSelected ? Colors.white : Colors.black87,
               fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              fontSize: 16,
+              fontSize: 14,
             ),
           ),
         ),
