@@ -148,6 +148,16 @@ class GameView extends StatelessWidget {
                 controller: controller,
               );
             }
+            else if (controller.gameMode.value == 'vegas') {
+               bool isOpponentActive = !controller.isMyTurn.value;
+               return Container(
+                 height: 60,
+                 alignment: Alignment.center,
+                 child: isOpponentActive 
+                   ? Text("Opponent Moves: ${controller.movesLeft.value}", style: TextStyle(fontSize: 20, color: Colors.grey[600], fontWeight: FontWeight.bold))
+                   : const SizedBox(),
+               );
+            }
             return const SizedBox(height: 10);
           }),
 
@@ -211,13 +221,10 @@ class GameView extends StatelessWidget {
                                 chessBoardColors: ChessBoardColors()..lightSquaresColor = const Color(0xFFF0D9B5)..darkSquaresColor = const Color(0xFFB58863),
                                 cellHighlights: Map.from(controller.validMoveHighlights),
                                 
-                                // 🟢 PROMOTION FIX
                                 onPromote: () async {
-                                  // Show dialog via controller
                                   String? char = await controller.pickPromotionCharacter();
                                   
-                                  // Map string back to PieceType for the library
-                                  if (char == null) return null; // Cancel
+                                  if (char == null) return null;
                                   switch (char) {
                                     case 'q': return PieceType.queen;
                                     case 'r': return PieceType.rook;
@@ -227,13 +234,11 @@ class GameView extends StatelessWidget {
                                   }
                                 },
                                 onPromotionCommited: ({required ShortMove moveDone, required PieceType pieceType}) {
-                                  // Convert PieceType back to char
                                   String char = 'q';
                                   if (pieceType == PieceType.rook) char = 'r';
                                   if (pieceType == PieceType.bishop) char = 'b';
                                   if (pieceType == PieceType.knight) char = 'n';
                                   
-                                  // Execute the logic
                                   controller.makeMove(from: moveDone.from, to: moveDone.to, promotion: char);
                                 },
                                 onMove: ({required ShortMove move}) {
@@ -243,7 +248,6 @@ class GameView extends StatelessWidget {
                                   controller.onSquareTap(cellCoordinate);
                                 },
                               ),
-                              
                               if (controller.isAnimating.value)
                                 Positioned(
                                   top: maskTop,
@@ -286,6 +290,16 @@ class GameView extends StatelessWidget {
                 isWhitePieces: amIWhite,
                 controller: controller,
               );
+            }
+            else if (controller.gameMode.value == 'vegas') {
+               bool isMyRowActive = controller.isMyTurn.value;
+               return Container(
+                 height: 60,
+                 alignment: Alignment.center,
+                 child: isMyRowActive 
+                   ? Text("Moves Left: ${controller.movesLeft.value}", style: TextStyle(fontSize: 24, color: Colors.green[800], fontWeight: FontWeight.bold))
+                   : const SizedBox(),
+               );
             }
             return const SizedBox();
           }),

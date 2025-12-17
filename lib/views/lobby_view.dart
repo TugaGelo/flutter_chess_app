@@ -15,8 +15,6 @@ class LobbyView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final MatchmakingController matchmakingController = Get.put(MatchmakingController());
-    
-    // Pick a random term
     final ChessTerm dailyTerm = chessTerms[Random().nextInt(chessTerms.length)];
 
     const Color bgBeige = Color(0xFFF0D9B5); 
@@ -45,7 +43,6 @@ class LobbyView extends StatelessWidget {
       ),
       body: Column(
         children: [
-          // 1. THE BOARD
           Expanded(
             flex: 5, 
             child: Container(
@@ -119,72 +116,70 @@ class LobbyView extends StatelessWidget {
             color: Colors.white,
             child: Column(
               children: [
-                SizedBox(
-                  width: double.infinity,
-                  child: Obx(() {
-                    bool isLoadingThis = matchmakingController.searchingMode.value == 'classical';
-                    bool isAnyLoading = matchmakingController.searchingMode.value.isNotEmpty;
-
-                    return ElevatedButton.icon(
-                      onPressed: isAnyLoading 
-                          ? null 
-                          : () => matchmakingController.startMatchmaking('classical'),
-                      
-                      icon: isLoadingThis 
-                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                          : const Icon(Icons.play_arrow),
-                      
-                      label: Text(
-                        isLoadingThis ? "Searching..." : "Classical",
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: textBrown,
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        elevation: 3,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
-                    );
-                  }),
+                _buildModeButton(
+                  label: "Classical", 
+                  icon: Icons.play_arrow, 
+                  color: textBrown, 
+                  mode: 'classical',
+                  controller: matchmakingController
                 ),
-
-                const SizedBox(height: 12),
+                const SizedBox(height: 10),
                 
-                SizedBox(
-                  width: double.infinity,
-                  child: Obx(() {
-                    bool isLoadingThis = matchmakingController.searchingMode.value == 'dice';
-                    bool isAnyLoading = matchmakingController.searchingMode.value.isNotEmpty;
+                _buildModeButton(
+                  label: "Dice", 
+                  icon: Icons.casino, 
+                  color: const Color(0xFFB58863), 
+                  mode: 'dice',
+                  controller: matchmakingController
+                ),
+                const SizedBox(height: 10),
 
-                    return ElevatedButton.icon(
-                      onPressed: isAnyLoading 
-                          ? null 
-                          : () => matchmakingController.startMatchmaking('dice'),
-                      
-                      icon: isLoadingThis 
-                          ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-                          : const Icon(Icons.casino),
-                      
-                      label: Text(
-                        isLoadingThis ? "Searching..." : "Dice",
-                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: const Color(0xFFB58863),
-                        foregroundColor: Colors.white,
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        elevation: 3,
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                      ),
-                    );
-                  }),
-                )
+                _buildModeButton(
+                  label: "Vegas", 
+                  icon: Icons.local_fire_department, 
+                  color: const Color(0xFFD32F2F),
+                  mode: 'vegas',
+                  controller: matchmakingController
+                ),
               ],
             ),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildModeButton({
+    required String label, 
+    required IconData icon, 
+    required Color color, 
+    required String mode,
+    required MatchmakingController controller
+  }) {
+    return SizedBox(
+      width: double.infinity,
+      child: Obx(() {
+        bool isLoadingThis = controller.searchingMode.value == mode;
+        bool isAnyLoading = controller.searchingMode.value.isNotEmpty;
+
+        return ElevatedButton.icon(
+          onPressed: isAnyLoading ? null : () => controller.startMatchmaking(mode),
+          icon: isLoadingThis 
+              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : Icon(icon),
+          label: Text(
+            isLoadingThis ? "Searching..." : label,
+            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          style: ElevatedButton.styleFrom(
+            backgroundColor: color,
+            foregroundColor: Colors.white,
+            padding: const EdgeInsets.symmetric(vertical: 16),
+            elevation: 3,
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+          ),
+        );
+      }),
     );
   }
 }

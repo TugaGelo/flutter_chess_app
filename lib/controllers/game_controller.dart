@@ -20,6 +20,7 @@ class GameController extends GetxController {
   
   RxString gameMode = 'classical'.obs;
   RxList<int> currentDice = <int>[].obs;
+  RxInt movesLeft = 0.obs;
   RxBool canMakeAnyMove = true.obs;
   
   RxString fen = ''.obs; 
@@ -64,17 +65,20 @@ class GameController extends GetxController {
       Map<String, dynamic>? lastMoveData = data['lastMove'];
       String? winner = data['winner']; 
       
+      if (data.containsKey('movesLeft')) {
+        movesLeft.value = data['movesLeft'];
+      }
+
       List<dynamic> serverMoves = data['moves'] ?? [];
       List<String> formattedMoves = [];
       
       for (int i = 0; i < serverMoves.length; i++) {
         String move = serverMoves[i].toString();
-        
         if (move == "Pass") {
           formattedMoves.add("Pass");
           continue;
         }
-
+        // Simple unicode replacement for display
         bool isWhiteMove = (i % 2 == 0);
         if (isWhiteMove) {
           move = move.replaceAll('K', '♔')
@@ -99,6 +103,10 @@ class GameController extends GetxController {
         currentDice.assignAll(List<int>.from(data['dice']));
       } else {
         currentDice.clear();
+      }
+
+      if (gameMode.value == 'vegas' && serverMoves.isEmpty && movesLeft.value == 0) {
+         movesLeft.value = 1; 
       }
 
       if (serverFen == chess_lib.Chess.DEFAULT_POSITION && serverMoves.isEmpty) {
@@ -131,10 +139,12 @@ class GameController extends GetxController {
 
       _updateHistoryAndUI(serverFen);
 
-      if (isMyTurn.value && gameMode.value == 'dice') {
-        _checkDiceLegalMoves();
-      } else {
-        canMakeAnyMove.value = true;
+      if (isMyTurn.value) {
+        if (gameMode.value == 'dice') {
+          _checkDiceLegalMoves();
+        } else {
+          canMakeAnyMove.value = true;
+        }
       }
 
       if (!isGameEnded.value) {
@@ -152,7 +162,6 @@ class GameController extends GetxController {
            }
         } else if (_chess.in_draw || _chess.in_stalemate || _chess.in_threefold_repetition) {
            _showGameOverDialog("Draw", "by stalemate or repetition");
-           
            if (winner == null) {
              _db.collection('games').doc(gameId.value).update({'winner': 'draw'});
            }
@@ -166,19 +175,14 @@ class GameController extends GetxController {
     tempGame.load(_chess.fen);
     
     List<dynamic> allMoves = tempGame.moves({'asObjects': true});
-    
     bool foundLegalMove = false;
     
     for (var move in allMoves) {
       chess_lib.PieceType type;
-      if (move is Map) {
-         type = move['piece']; 
-      } else {
-         type = move.piece; 
-      }
+      if (move is Map) type = move['piece']; 
+      else type = move.piece; 
       
       int diceValue = _getPieceDiceValue(type);
-      
       if (currentDice.contains(diceValue)) {
         foundLegalMove = true;
         break; 
@@ -190,10 +194,7 @@ class GameController extends GetxController {
     if (!foundLegalMove && _chess.in_check) {
       Get.snackbar("Checkmate!", "Bad luck! Your dice cannot save the King.", 
         backgroundColor: Colors.red, colorText: Colors.white, duration: const Duration(seconds: 4));
-      
-      Future.delayed(const Duration(seconds: 3), () {
-         resignGame(); 
-      });
+      Future.delayed(const Duration(seconds: 3), () => resignGame());
     }
   }
 
@@ -270,7 +271,7 @@ class GameController extends GetxController {
 
     if (promotion == null && _isPromotion(from, to)) {
       promotion = await pickPromotionCharacter();
-      if (promotion == null) return;
+      if (promotion == null) return; 
     }
 
     try {
@@ -283,23 +284,56 @@ class GameController extends GetxController {
         String pgn = _chess.pgn();
         List<String> moves = pgn.split(' ').where((s) => s.isNotEmpty && !s.contains('.')).toList();
         String moveSan = moves.isNotEmpty ? moves.last : "move"; 
+        
+        String finalFen = _chess.fen;
+        int nextMovesLeft = 0;
+        List<int> nextDice = [];
 
         clearHighlights();
-        if (isTap) await _triggerAnimation(from, to, _chess.fen);
+        if (isTap) await _triggerAnimation(from, to, finalFen);
 
-        displayFen.value = _chess.fen; 
-        
-        List<int> nextDice = [];
-        if (gameMode.value == 'dice') {
+        displayFen.value = finalFen; 
+
+        if (gameMode.value == 'vegas') {
+          int current = movesLeft.value > 0 ? movesLeft.value : 1; 
+          nextMovesLeft = current - 1;
+
+          if (_chess.in_check || _chess.in_checkmate) {
+            nextMovesLeft = 0;
+            if (_chess.in_check) {
+               Get.snackbar("Check!", "Turn ends immediately!", 
+                 backgroundColor: Colors.red, colorText: Colors.white, duration: const Duration(seconds: 2));
+            }
+          }
+
+          if (nextMovesLeft > 0) {
+            List<String> parts = finalFen.split(' ');
+            parts[1] = myColor.value;
+            parts[3] = '-';
+            finalFen = parts.join(' ');
+            
+            _chess.load(finalFen);
+            displayFen.value = finalFen;
+          } else {
+            int roll = Random().nextInt(6) + 1;
+            if (roll <= 2) nextMovesLeft = 1;
+            else if (roll <= 4) nextMovesLeft = 2;
+            else nextMovesLeft = 3;
+            
+            nextDice = [roll];
+          }
+        } 
+        else if (gameMode.value == 'dice') {
            nextDice = [Random().nextInt(6)+1, Random().nextInt(6)+1, Random().nextInt(6)+1];
         }
 
         await _db.collection('games').doc(gameId.value).update({
-          'fen': _chess.fen, 
+          'fen': finalFen, 
           'pgn': _chess.pgn(),
           'moves': FieldValue.arrayUnion([moveSan]), 
           'lastMove': {'from': from, 'to': to, 'promotion': promotion, 'by': myColor.value},
-          'dice': nextDice 
+          'dice': nextDice,
+          'movesLeft': nextMovesLeft
         });
       } else {
         displayFen.refresh(); 
@@ -312,10 +346,8 @@ class GameController extends GetxController {
   bool _isPromotion(String from, String to) {
     final piece = _chess.get(from);
     if (piece == null || piece.type != chess_lib.PieceType.PAWN) return false;
-    
     if (piece.color == chess_lib.Color.WHITE && to.endsWith('8')) return true;
     if (piece.color == chess_lib.Color.BLACK && to.endsWith('1')) return true;
-    
     return false;
   }
 
@@ -513,7 +545,8 @@ class GameController extends GetxController {
       'moves': [],
       'lastMove': null,
       'winner': null,
-      'dice': initialDice 
+      'dice': initialDice,
+      'movesLeft': (mode == 'vegas') ? 1 : 0 
     });
   }
 
