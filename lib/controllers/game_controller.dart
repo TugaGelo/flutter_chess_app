@@ -79,7 +79,6 @@ class GameController extends GetxController {
         if (rawMove.length > 2 && rawMove[1] == ':') {
           colorPrefix = rawMove.substring(0, 1);
           cleanMove = rawMove.substring(2);
-        } else {
         }
 
         if (colorPrefix == 'w') {
@@ -108,7 +107,6 @@ class GameController extends GetxController {
       if (currentGroup.isNotEmpty) groupedMoves.add(currentGroup);
       moveHistorySan.assignAll(groupedMoves);
 
-
       gameMode.value = data['mode'] ?? 'classical';
       
       if (data['dice'] != null) {
@@ -117,8 +115,10 @@ class GameController extends GetxController {
         currentDice.clear();
       }
 
-      if (gameMode.value == 'vegas' && serverMoves.isEmpty && movesLeft.value == 0) {
-         movesLeft.value = 1; 
+      // 🐍 BOA / VEGAS INIT
+      if (serverMoves.isEmpty && movesLeft.value == 0) {
+         if (gameMode.value == 'vegas') movesLeft.value = 1;
+         if (gameMode.value == 'boa') movesLeft.value = 3; // Boa starts with 3
       }
 
       if (serverFen == chess_lib.Chess.DEFAULT_POSITION && serverMoves.isEmpty) {
@@ -145,7 +145,7 @@ class GameController extends GetxController {
       _updateHistoryAndUI(serverFen);
 
       if (isMyTurn.value) {
-        if (gameMode.value == 'dice') {
+        if (gameMode.value == 'dice' || gameMode.value == 'boa') {
           _checkDiceLegalMoves();
         } else {
           canMakeAnyMove.value = true;
@@ -173,6 +173,7 @@ class GameController extends GetxController {
     tempGame.load(_chess.fen);
     List<dynamic> allMoves = tempGame.moves({'asObjects': true});
     bool foundLegalMove = false;
+    
     for (var move in allMoves) {
       chess_lib.PieceType type;
       if (move is Map) type = move['piece']; 
@@ -185,7 +186,9 @@ class GameController extends GetxController {
       }
     }
     canMakeAnyMove.value = foundLegalMove;
-    if (!foundLegalMove && _chess.in_check) {
+    
+    // In Boa/Dice, being stuck often results in a loss or forced pass
+    if (!foundLegalMove && isMyTurn.value && _chess.in_check) {
       Get.snackbar("Checkmate!", "Bad luck! Your dice cannot save the King.", 
         backgroundColor: Colors.red, colorText: Colors.white, duration: const Duration(seconds: 4));
       Future.delayed(const Duration(seconds: 3), () => resignGame());
@@ -251,10 +254,13 @@ class GameController extends GetxController {
     if (currentMoveIndex.value != fenHistory.length - 1) return;
     if (!isMyTurn.value) return;
 
-    if (gameMode.value == 'dice') {
+    int pieceValue = 0; // Store to remove from dice pool
+
+    // 🎲 DICE & BOA CHECK
+    if (gameMode.value == 'dice' || gameMode.value == 'boa') {
       final piece = _chess.get(from);
       if (piece != null) {
-        int pieceValue = _getPieceDiceValue(piece.type);
+        pieceValue = _getPieceDiceValue(piece.type);
         if (!currentDice.contains(pieceValue)) {
           Get.snackbar("Invalid Move", "Must match dice!", snackPosition: SnackPosition.BOTTOM, duration: const Duration(seconds: 1));
           return;
@@ -286,14 +292,50 @@ class GameController extends GetxController {
 
         String finalFen = _chess.fen;
         int nextMovesLeft = 0;
-        List<int> nextDice = [];
+        List<int> nextDice = List.from(currentDice); // Copy list to modify
 
         clearHighlights();
         if (isTap) await _triggerAnimation(from, to, finalFen);
 
         displayFen.value = finalFen; 
 
-        if (gameMode.value == 'vegas') {
+        // 🐍 BOA LOGIC
+        if (gameMode.value == 'boa') {
+          // 1. Spend the die
+          if (nextDice.contains(pieceValue)) {
+            nextDice.remove(pieceValue); // Removes only the first matching die
+          }
+          
+          // 2. Decrement moves
+          int current = movesLeft.value > 0 ? movesLeft.value : 1;
+          nextMovesLeft = current - 1;
+
+          // 3. Check rule (Ends turn)
+          if (_chess.in_check || _chess.in_checkmate) {
+            nextMovesLeft = 0;
+            if (_chess.in_check) {
+               Get.snackbar("Check!", "Turn ends immediately!", 
+                 backgroundColor: Colors.red, colorText: Colors.white, duration: const Duration(seconds: 2));
+            }
+          }
+
+          if (nextMovesLeft > 0) {
+            // Hijack Turn
+            List<String> parts = finalFen.split(' ');
+            parts[1] = myColor.value; // Force turn
+            parts[3] = '-'; // Clear en passant
+            finalFen = parts.join(' ');
+            
+            _chess.load(finalFen);
+            displayFen.value = finalFen;
+          } else {
+            // Turn Over: Reset Opponent to 3
+            nextMovesLeft = 3;
+            nextDice = [Random().nextInt(6)+1, Random().nextInt(6)+1, Random().nextInt(6)+1];
+          }
+        }
+        // 🎰 VEGAS LOGIC
+        else if (gameMode.value == 'vegas') {
           int current = movesLeft.value > 0 ? movesLeft.value : 1; 
           nextMovesLeft = current - 1;
 
@@ -321,6 +363,7 @@ class GameController extends GetxController {
             nextDice = [roll];
           }
         } 
+        // 🎲 DICE LOGIC
         else if (gameMode.value == 'dice') {
            nextDice = [Random().nextInt(6)+1, Random().nextInt(6)+1, Random().nextInt(6)+1];
         }
@@ -340,6 +383,7 @@ class GameController extends GetxController {
       displayFen.refresh();
     }
   }
+
   bool _isPromotion(String from, String to) {
     final piece = _chess.get(from);
     if (piece == null || piece.type != chess_lib.PieceType.PAWN) return false;
@@ -382,7 +426,10 @@ class GameController extends GetxController {
 
   Future<void> passTurn() async {
     if (!isMyTurn.value) return;
-    if (gameMode.value != 'dice') return;
+    
+    // In Classical and Vegas, you cannot Pass.
+    // In Dice and Boa, you can pass if stuck.
+    if (gameMode.value == 'classical' || gameMode.value == 'vegas') return;
     
     _checkDiceLegalMoves();
     if (canMakeAnyMove.value) {
@@ -406,15 +453,26 @@ class GameController extends GetxController {
     }
     String newFen = fenParts.join(' ');
 
-    List<int> nextDice = [Random().nextInt(6)+1, Random().nextInt(6)+1, Random().nextInt(6)+1];
+    List<int> nextDice = [];
+    int nextMovesLeft = 0;
+
+    // Reset logic for next player
+    if (gameMode.value == 'boa') {
+       nextMovesLeft = 3; 
+       nextDice = [Random().nextInt(6)+1, Random().nextInt(6)+1, Random().nextInt(6)+1];
+    } else {
+       // Dice mode
+       nextDice = [Random().nextInt(6)+1, Random().nextInt(6)+1, Random().nextInt(6)+1];
+    }
 
     clearHighlights();
     
     await _db.collection('games').doc(gameId.value).update({
       'fen': newFen,
       'dice': nextDice,
-      'moves': FieldValue.arrayUnion(["Pass"]), // Pass is handled specially in loop
-      'lastMove': {'from': 'pass', 'to': 'pass', 'by': myColor.value}
+      'moves': FieldValue.arrayUnion(["Pass"]),
+      'lastMove': {'from': 'pass', 'to': 'pass', 'by': myColor.value},
+      'movesLeft': nextMovesLeft
     });
   }
 
@@ -444,7 +502,7 @@ class GameController extends GetxController {
                       (myColor.value == 'b' && piece.color == chess_lib.Color.BLACK));
     if (isMyPiece) {
       _selectedSquare = square;
-      if (gameMode.value == 'dice') {
+      if (gameMode.value == 'dice' || gameMode.value == 'boa') {
          int val = _getPieceDiceValue(piece.type);
          if (!currentDice.contains(val)) {
             return;
@@ -517,7 +575,7 @@ class GameController extends GetxController {
     String currentBlack = doc['black'];
     String mode = doc['mode'] ?? 'classical';
     List<int> initialDice = [];
-    if (mode == 'dice') {
+    if (mode == 'dice' || mode == 'boa') {
       Random rng = Random();
       initialDice = [rng.nextInt(6)+1, rng.nextInt(6)+1, rng.nextInt(6)+1];
     }
@@ -530,7 +588,7 @@ class GameController extends GetxController {
       'lastMove': null,
       'winner': null,
       'dice': initialDice,
-      'movesLeft': (mode == 'vegas') ? 1 : 0 
+      'movesLeft': (mode == 'vegas') ? 1 : (mode == 'boa' ? 3 : 0)
     });
   }
 

@@ -136,16 +136,21 @@ class GameView extends StatelessWidget {
           ),
 
           Obx(() {
-            if (controller.gameMode.value == 'dice') {
+            if (controller.gameMode.value == 'dice' || controller.gameMode.value == 'boa') {
               bool isOpponentActive = !controller.isMyTurn.value;
               bool isOpponentWhite = controller.myColor.value == 'b'; 
 
-              return _buildDiceRow(
-                isActive: isOpponentActive,
-                diceValues: isOpponentActive ? controller.currentDice : [], 
-                isBottom: false,
-                isWhitePieces: isOpponentWhite,
-                controller: controller,
+              return Column(
+                children: [
+                   const SizedBox(height: 5), 
+                   _buildDiceRow(
+                    isActive: isOpponentActive,
+                    diceValues: controller.currentDice, 
+                    isBottom: false,
+                    isWhitePieces: isOpponentWhite,
+                    controller: controller,
+                  ),
+                ],
               );
             }
             else if (controller.gameMode.value == 'vegas') {
@@ -155,10 +160,10 @@ class GameView extends StatelessWidget {
                  alignment: Alignment.center,
                  child: isOpponentActive 
                    ? Text("Opponent Moves: ${controller.movesLeft.value}", style: TextStyle(fontSize: 20, color: Colors.grey[600], fontWeight: FontWeight.bold))
-                   : const SizedBox(),
+                   : const SizedBox(height: 60),
                );
             }
-            return const SizedBox(height: 10);
+            return const SizedBox(height: 60);
           }),
 
           Expanded(
@@ -276,16 +281,21 @@ class GameView extends StatelessWidget {
           ),
 
           Obx(() {
-            if (controller.gameMode.value == 'dice') {
+            if (controller.gameMode.value == 'dice' || controller.gameMode.value == 'boa') {
               bool isMyRowActive = controller.isMyTurn.value;
               bool amIWhite = controller.myColor.value == 'w'; 
 
-              return _buildDiceRow(
-                isActive: isMyRowActive,
-                diceValues: isMyRowActive ? controller.currentDice : [],
-                isBottom: true,
-                isWhitePieces: amIWhite,
-                controller: controller,
+              return Column(
+                children: [
+                  const SizedBox(height: 5),
+                  _buildDiceRow(
+                    isActive: isMyRowActive,
+                    diceValues: controller.currentDice,
+                    isBottom: true,
+                    isWhitePieces: amIWhite,
+                    controller: controller,
+                  ),
+                ],
               );
             }
             else if (controller.gameMode.value == 'vegas') {
@@ -295,10 +305,10 @@ class GameView extends StatelessWidget {
                  alignment: Alignment.center,
                  child: isMyRowActive 
                    ? Text("Moves Left: ${controller.movesLeft.value}", style: TextStyle(fontSize: 24, color: Colors.green[800], fontWeight: FontWeight.bold))
-                   : const SizedBox(),
+                   : const SizedBox(height: 60),
                );
             }
-            return const SizedBox();
+            return const SizedBox(height: 60);
           }),
 
           Padding(
@@ -356,9 +366,9 @@ class GameView extends StatelessWidget {
               height: 40,
               margin: const EdgeInsets.symmetric(horizontal: 4),
               decoration: BoxDecoration(
-                color: isActive && diceValues.isNotEmpty ? activeBg : Colors.grey[200],
+                color: (isActive && i < diceValues.length) ? activeBg : Colors.grey[200],
                 border: Border.all(
-                  color: isActive && diceValues.isNotEmpty ? activeBorder : inactiveColor,
+                  color: (isActive && i < diceValues.length) ? activeBorder : inactiveColor,
                   width: 2
                 ),
                 borderRadius: BorderRadius.circular(8),

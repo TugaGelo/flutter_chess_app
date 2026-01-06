@@ -44,9 +44,9 @@ class LobbyView extends StatelessWidget {
       body: Column(
         children: [
           Expanded(
-            flex: 5, 
+            flex: 3, 
             child: Container(
-              color: Colors.grey[200], 
+              color: Colors.white, 
               padding: const EdgeInsets.all(20),
               child: Center(
                 child: AspectRatio(
@@ -78,9 +78,8 @@ class LobbyView extends StatelessWidget {
             ),
           ),
 
-          // 2. THE LESSON TEXT
           Expanded(
-            flex: 2, 
+            flex: 1, 
             child: Container(
               padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 10.0),
               width: double.infinity,
@@ -100,6 +99,8 @@ class LobbyView extends StatelessWidget {
                   Text(
                     dailyTerm.description,
                     textAlign: TextAlign.center,
+                    maxLines: 3, 
+                    overflow: TextOverflow.ellipsis,
                     style: const TextStyle(
                       fontSize: 16, 
                       color: Colors.black87,
@@ -111,37 +112,50 @@ class LobbyView extends StatelessWidget {
             ),
           ),
 
-          Container(
-            padding: const EdgeInsets.fromLTRB(20, 0, 20, 30),
-            color: Colors.white,
-            child: Column(
-              children: [
-                _buildModeButton(
-                  label: "Classical", 
-                  icon: Icons.play_arrow, 
-                  color: textBrown, 
-                  mode: 'classical',
-                  controller: matchmakingController
-                ),
-                const SizedBox(height: 10),
-                
-                _buildModeButton(
-                  label: "Dice", 
-                  icon: Icons.casino, 
-                  color: const Color(0xFFB58863), 
-                  mode: 'dice',
-                  controller: matchmakingController
-                ),
-                const SizedBox(height: 10),
+          Expanded(
+            flex: 2,
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(30, 0, 30, 20),
+              color: Colors.white,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _buildModeButton(
+                    label: "Classical", 
+                    icon: Icons.play_arrow, 
+                    color: textBrown, 
+                    mode: 'classical',
+                    controller: matchmakingController
+                  ),
+                  const SizedBox(height: 10),
+                  
+                  _buildModeButton(
+                    label: "Dice", 
+                    icon: Icons.casino, 
+                    color: const Color(0xFFB58863), 
+                    mode: 'dice',
+                    controller: matchmakingController
+                  ),
+                  const SizedBox(height: 10),
 
-                _buildModeButton(
-                  label: "Vegas", 
-                  icon: Icons.local_fire_department, 
-                  color: const Color(0xFFD32F2F),
-                  mode: 'vegas',
-                  controller: matchmakingController
-                ),
-              ],
+                  _buildModeButton(
+                    label: "Vegas", 
+                    icon: Icons.local_fire_department, 
+                    color: const Color(0xFFD32F2F),
+                    mode: 'vegas',
+                    controller: matchmakingController
+                  ),
+                  const SizedBox(height: 10),
+
+                  _buildModeButton(
+                    label: "Boa", 
+                    icon: Icons.all_inclusive, 
+                    color: const Color(0xFF7B1FA2),
+                    mode: 'boa',
+                    controller: matchmakingController
+                  ),
+                ],
+              ),
             ),
           ),
         ],
@@ -158,26 +172,33 @@ class LobbyView extends StatelessWidget {
   }) {
     return SizedBox(
       width: double.infinity,
+      height: 52,
       child: Obx(() {
         bool isLoadingThis = controller.searchingMode.value == mode;
         bool isAnyLoading = controller.searchingMode.value.isNotEmpty;
 
-        return ElevatedButton.icon(
+        return ElevatedButton(
           onPressed: isAnyLoading ? null : () => controller.startMatchmaking(mode),
-          icon: isLoadingThis 
-              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
-              : Icon(icon),
-          label: Text(
-            isLoadingThis ? "Searching..." : label,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-          ),
           style: ElevatedButton.styleFrom(
             backgroundColor: color,
             foregroundColor: Colors.white,
-            padding: const EdgeInsets.symmetric(vertical: 16),
             elevation: 3,
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            padding: EdgeInsets.zero,
           ),
+          child: isLoadingThis 
+              ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+              : Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(icon, size: 24),
+                    const SizedBox(width: 12),
+                    Text(
+                      label,
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
         );
       }),
     );

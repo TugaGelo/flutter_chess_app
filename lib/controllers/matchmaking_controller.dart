@@ -88,7 +88,7 @@ class MatchmakingController extends GetxController {
   Future<void> _createGameRecord(String gameId, String whiteId, String blackId, String whiteName, String blackName, String mode) async {
     
     List<int> initialDice = [];
-    if (mode == 'dice') {
+    if (mode == 'dice' || mode == 'boa') {
       Random rng = Random();
       initialDice = [
         rng.nextInt(6) + 1,
@@ -96,6 +96,10 @@ class MatchmakingController extends GetxController {
         rng.nextInt(6) + 1
       ];
     }
+
+    int initialMovesLeft = 0;
+    if (mode == 'boa') initialMovesLeft = 3;
+    if (mode == 'vegas') initialMovesLeft = 1;
 
     await _db.collection('games').doc(gameId).set({
       'white': whiteId,
@@ -108,6 +112,8 @@ class MatchmakingController extends GetxController {
       'date': FieldValue.serverTimestamp(),
       'mode': mode,
       'dice': initialDice,
+      'movesLeft': initialMovesLeft,
+      'moves': []
     });
   }
 
