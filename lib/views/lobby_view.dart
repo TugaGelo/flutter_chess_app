@@ -4,6 +4,7 @@ import 'package:simple_chess_board/simple_chess_board.dart';
 import 'dart:math'; 
 import '../controllers/auth_controller.dart';
 import '../controllers/matchmaking_controller.dart';
+import '../controllers/sound_controller.dart';
 import '../models/chess_term.dart';
 import '../data/chess_terms_data.dart';
 import '../widgets/board_overlay.dart';
@@ -15,6 +16,7 @@ class LobbyView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final MatchmakingController matchmakingController = Get.put(MatchmakingController());
+    Get.put(SoundController()); 
     final ChessTerm dailyTerm = chessTerms[Random().nextInt(chessTerms.length)];
 
     const Color bgBeige = Color(0xFFF0D9B5); 
@@ -29,6 +31,7 @@ class LobbyView extends StatelessWidget {
         centerTitle: true,
         leading: IconButton(
           onPressed: () {
+            SoundController.instance.playClick();
             Get.to(() => const HistoryView());
           },
           icon: const Icon(Icons.history),
@@ -36,7 +39,10 @@ class LobbyView extends StatelessWidget {
         ),
         actions: [
           IconButton(
-            onPressed: () => AuthController.instance.signOut(),
+            onPressed: () {
+              SoundController.instance.playClick();
+              AuthController.instance.signOut();
+            },
             icon: const Icon(Icons.logout),
           ),
         ],
@@ -180,15 +186,30 @@ class LobbyView extends StatelessWidget {
               bool isLoadingThis = controller.searchingMode.value == mode;
               bool isAnyLoading = controller.searchingMode.value.isNotEmpty;
 
+              VoidCallback? onPressedLogic;
+              
+              if (isLoadingThis) {
+                onPressedLogic = () {
+                  SoundController.instance.playCancel();
+                  controller.cancelMatchmaking();
+                };
+              } else if (!isAnyLoading) {
+                onPressedLogic = () {
+                  SoundController.instance.playClick();
+                  controller.startMatchmaking(mode);
+                };
+              } else {
+                onPressedLogic = null;
+              }
+
               return ElevatedButton(
-                onPressed: isLoadingThis 
-                    ? () => controller.cancelMatchmaking() 
-                    : (isAnyLoading ? null : () => controller.startMatchmaking(mode)),
-                
+                onPressed: onPressedLogic,
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: isLoadingThis ? Colors.redAccent : color,
+                  backgroundColor: isLoadingThis ? Colors.redAccent : color, 
                   foregroundColor: Colors.white,
-                  elevation: 3,
+                  disabledBackgroundColor: Colors.grey[300], 
+                  disabledForegroundColor: Colors.grey[500],
+                  elevation: isLoadingThis || !isAnyLoading ? 3 : 0, 
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   padding: EdgeInsets.zero,
                 ),
@@ -221,11 +242,14 @@ class LobbyView extends StatelessWidget {
             top: 0,
             bottom: 0,
             child: Obx(() => controller.searchingMode.value == mode 
-              ? const SizedBox()
+              ? const SizedBox() 
               : IconButton(
                   icon: const Icon(Icons.info_outline, color: Colors.white70),
                   tooltip: "Rules",
-                  onPressed: () => _showRulesDialog(mode, label),
+                  onPressed: () {
+                    SoundController.instance.playClick(); 
+                    _showRulesDialog(mode, label);
+                  },
                 )
             ),
           )
@@ -263,7 +287,10 @@ class LobbyView extends StatelessWidget {
         ),
       ),
       confirm: ElevatedButton(
-        onPressed: () => Get.back(),
+        onPressed: () {
+          SoundController.instance.playClick();
+          Get.back();
+        },
         style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF5D4037), foregroundColor: Colors.white),
         child: const Text("Got it!"),
       ),

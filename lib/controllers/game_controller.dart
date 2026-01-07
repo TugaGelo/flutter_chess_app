@@ -5,6 +5,7 @@ import 'package:chess/chess.dart' as chess_lib;
 import 'dart:math';
 import '../controllers/auth_controller.dart';
 import '../views/lobby_view.dart';
+import '../controllers/sound_controller.dart';
 import 'package:chess_vectors_flutter/chess_vectors_flutter.dart';
 
 class GameController extends GetxController {
@@ -45,6 +46,14 @@ class GameController extends GetxController {
     gameId.value = id;
     myColor.value = assignedColor; 
     isGameEnded.value = false;
+    
+    _chess.reset();
+    fenHistory.clear();
+    moveHistorySan.clear();
+    currentMoveIndex.value = -1;
+    gameOverMessage.value = '';
+    _lastProcessedFen = '';
+    
     _connectToGameStream();
   }
 
@@ -115,10 +124,13 @@ class GameController extends GetxController {
         currentDice.clear();
       }
 
-      // 🐍 BOA / VEGAS INIT
       if (serverMoves.isEmpty && movesLeft.value == 0) {
          if (gameMode.value == 'vegas') movesLeft.value = 1;
-         if (gameMode.value == 'boa') movesLeft.value = 3; // Boa starts with 3
+         if (gameMode.value == 'boa') movesLeft.value = 3; 
+      }
+
+      if (serverFen == chess_lib.Chess.DEFAULT_POSITION && serverMoves.isEmpty && fenHistory.isEmpty) {
+        SoundController.instance.playGameStart(); 
       }
 
       if (serverFen == chess_lib.Chess.DEFAULT_POSITION && serverMoves.isEmpty) {
@@ -139,6 +151,17 @@ class GameController extends GetxController {
       if (isOpponentMove && lastMoveData != null && !isAnimating.value) {
         if (lastMoveData['from'] != 'pass' && lastMoveData['from'] != lastMoveData['to']) {
            await _triggerAnimation(lastMoveData['from'], lastMoveData['to'], serverFen);
+           if (!_chess.game_over) {
+               if (_chess.in_check) {
+                  SoundController.instance.playCheck();
+               } 
+               else if (serverMoves.isNotEmpty && serverMoves.last.toString().contains('x')) {
+                  SoundController.instance.playCapture(); 
+               } 
+               else {
+                  SoundController.instance.playOpponentMove(); 
+               }
+           }
         }
       }
 
@@ -154,13 +177,16 @@ class GameController extends GetxController {
 
       if (!isGameEnded.value) {
         if (winner != null) {
+           SoundController.instance.playGameEnd(); 
            if (winner == 'draw') _showGameOverDialog("Game Drawn", "by mutual agreement");
            else _handleResignation(winner);
         } else if (_chess.in_checkmate) {
+           SoundController.instance.playGameEnd(); 
            String winnerColor = _chess.turn == chess_lib.Color.WHITE ? "Black" : "White";
            _showGameOverDialog("$winnerColor Won", "by checkmate");
            if (winner == null) _db.collection('games').doc(gameId.value).update({'winner': winnerColor == "White" ? 'w' : 'b'});
         } else if (_chess.in_draw || _chess.in_stalemate) {
+           SoundController.instance.playGameEnd(); 
            _showGameOverDialog("Draw", "by stalemate");
            if (winner == null) _db.collection('games').doc(gameId.value).update({'winner': 'draw'});
         }
@@ -187,7 +213,6 @@ class GameController extends GetxController {
     }
     canMakeAnyMove.value = foundLegalMove;
     
-    // In Boa/Dice, being stuck often results in a loss or forced pass
     if (!foundLegalMove && isMyTurn.value && _chess.in_check) {
       Get.snackbar("Checkmate!", "Bad luck! Your dice cannot save the King.", 
         backgroundColor: Colors.red, colorText: Colors.white, duration: const Duration(seconds: 4));
@@ -254,9 +279,8 @@ class GameController extends GetxController {
     if (currentMoveIndex.value != fenHistory.length - 1) return;
     if (!isMyTurn.value) return;
 
-    int pieceValue = 0; // Store to remove from dice pool
+    int pieceValue = 0; 
 
-    // 🎲 DICE & BOA CHECK
     if (gameMode.value == 'dice' || gameMode.value == 'boa') {
       final piece = _chess.get(from);
       if (piece != null) {
@@ -277,9 +301,22 @@ class GameController extends GetxController {
       final moveMap = {'from': from, 'to': to};
       if (promotion != null) moveMap['promotion'] = promotion;
 
+      bool isCapture = _chess.get(to) != null; 
+
       bool success = _chess.move(moveMap);
       
       if (success) {
+        if (!_chess.game_over) {
+            bool isCheck = _chess.in_check; 
+            if (isCheck) {
+               SoundController.instance.playCheck();
+            } else if (isCapture) {
+               SoundController.instance.playCapture();
+            } else {
+               SoundController.instance.playMove();
+            }
+        }
+
         String pgn = _chess.pgn();
         List<String> pgnTokens = pgn.split(' ').where((t) => t.trim().isNotEmpty && !t.contains('.')).toList();
         String moveSan = pgnTokens.isNotEmpty ? pgnTokens.last : '';
@@ -292,25 +329,21 @@ class GameController extends GetxController {
 
         String finalFen = _chess.fen;
         int nextMovesLeft = 0;
-        List<int> nextDice = List.from(currentDice); // Copy list to modify
+        List<int> nextDice = List.from(currentDice);
 
         clearHighlights();
         if (isTap) await _triggerAnimation(from, to, finalFen);
 
         displayFen.value = finalFen; 
 
-        // 🐍 BOA LOGIC
         if (gameMode.value == 'boa') {
-          // 1. Spend the die
           if (nextDice.contains(pieceValue)) {
-            nextDice.remove(pieceValue); // Removes only the first matching die
+            nextDice.remove(pieceValue); 
           }
           
-          // 2. Decrement moves
           int current = movesLeft.value > 0 ? movesLeft.value : 1;
           nextMovesLeft = current - 1;
 
-          // 3. Check rule (Ends turn)
           if (_chess.in_check || _chess.in_checkmate) {
             nextMovesLeft = 0;
             if (_chess.in_check) {
@@ -320,21 +353,18 @@ class GameController extends GetxController {
           }
 
           if (nextMovesLeft > 0) {
-            // Hijack Turn
             List<String> parts = finalFen.split(' ');
-            parts[1] = myColor.value; // Force turn
-            parts[3] = '-'; // Clear en passant
+            parts[1] = myColor.value; 
+            parts[3] = '-'; 
             finalFen = parts.join(' ');
             
             _chess.load(finalFen);
             displayFen.value = finalFen;
           } else {
-            // Turn Over: Reset Opponent to 3
             nextMovesLeft = 3;
             nextDice = [Random().nextInt(6)+1, Random().nextInt(6)+1, Random().nextInt(6)+1];
           }
         }
-        // 🎰 VEGAS LOGIC
         else if (gameMode.value == 'vegas') {
           int current = movesLeft.value > 0 ? movesLeft.value : 1; 
           nextMovesLeft = current - 1;
@@ -363,7 +393,6 @@ class GameController extends GetxController {
             nextDice = [roll];
           }
         } 
-        // 🎲 DICE LOGIC
         else if (gameMode.value == 'dice') {
            nextDice = [Random().nextInt(6)+1, Random().nextInt(6)+1, Random().nextInt(6)+1];
         }
@@ -427,8 +456,6 @@ class GameController extends GetxController {
   Future<void> passTurn() async {
     if (!isMyTurn.value) return;
     
-    // In Classical and Vegas, you cannot Pass.
-    // In Dice and Boa, you can pass if stuck.
     if (gameMode.value == 'classical' || gameMode.value == 'vegas') return;
     
     _checkDiceLegalMoves();
@@ -456,12 +483,10 @@ class GameController extends GetxController {
     List<int> nextDice = [];
     int nextMovesLeft = 0;
 
-    // Reset logic for next player
     if (gameMode.value == 'boa') {
        nextMovesLeft = 3; 
        nextDice = [Random().nextInt(6)+1, Random().nextInt(6)+1, Random().nextInt(6)+1];
     } else {
-       // Dice mode
        nextDice = [Random().nextInt(6)+1, Random().nextInt(6)+1, Random().nextInt(6)+1];
     }
 
