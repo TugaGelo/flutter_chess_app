@@ -1,337 +1,429 @@
-import 'dart:async'; 
 import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
-import 'package:bishop/bishop.dart' as bishop; 
-import 'package:squares/squares.dart' as squares;
+import 'package:chess/chess.dart' as chess_lib;
 import 'dart:math';
 import '../controllers/auth_controller.dart';
 import '../views/lobby_view.dart';
+import '../controllers/sound_controller.dart';
 import 'package:chess_vectors_flutter/chess_vectors_flutter.dart';
 
 class GameController extends GetxController {
   static GameController instance = Get.find();
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  StreamSubscription<DocumentSnapshot>? _gameSubscription;
-
   RxString gameId = ''.obs;
   RxString myColor = ''.obs;
   RxBool isMyTurn = false.obs;
+  RxBool isWhiteTurn = true.obs;
+  RxBool isGameEnded = false.obs;
+  RxString gameOverMessage = ''.obs;
+  
   RxString gameMode = 'classical'.obs;
   RxList<int> currentDice = <int>[].obs;
-  RxBool isGameEnded = false.obs;
+  RxInt movesLeft = 0.obs;
   RxBool canMakeAnyMove = true.obs;
+  
+  RxString fen = ''.obs; 
+  String _lastProcessedFen = '';
 
-  late bishop.Game game;
-  late squares.BoardState boardState;
-  late squares.PieceSet pieceSet;
-  
-  String boardKey = "";
-  
-  Rxn<int> selectedSquare = Rxn<int>();
-  RxList<int> validMoves = <int>[].obs;
-  
-  Map<String, dynamic>? lastMoveConfig; 
-  
-  bool enableAnimation = true;
+  RxBool isAnimating = false.obs;
+  RxString animStartSquare = ''.obs; 
+  RxString animEndSquare = ''.obs;   
+  RxString animPieceChar = ''.obs;   
 
-  List<String> fenHistory = [];
+  RxMap<String, Color> validMoveHighlights = <String, Color>{}.obs;
+  String? _selectedSquare;
+
   RxString displayFen = ''.obs; 
+  RxList<String> fenHistory = <String>[].obs; 
   RxList<String> moveHistorySan = <String>[].obs; 
   RxInt currentMoveIndex = (-1).obs;
 
-  @override
-  void onInit() {
-    super.onInit();
-    pieceSet = squares.PieceSet.merida();
-    _initGame();
-  }
+  final chess_lib.Chess _chess = chess_lib.Chess();
 
-  @override
-  void onClose() {
-    _unsubscribeFromGame();
-    super.onClose();
-  }
-
-  void _unsubscribeFromGame() {
-    if (_gameSubscription != null) {
-      _gameSubscription!.cancel();
-      _gameSubscription = null;
-    }
-  }
-
-  void _initGame([String? fen]) {
-    game = bishop.Game(variant: bishop.Variant.standard());
-    if (fen != null) game.loadFen(fen);
-
-    _updateUi();
+  void setGame(String id, String assignedColor) {
+    gameId.value = id;
+    myColor.value = assignedColor; 
+    isGameEnded.value = false;
     
-    fenHistory = [game.fen];
-    displayFen.value = game.fen;
-    currentMoveIndex.value = 0;
-  }
-
-  String _toAlgebraic(int index) {
-    int file = index % 8;
-    int rank = 8 - (index ~/ 8);
-    String fileChar = String.fromCharCode('a'.codeUnitAt(0) + file);
-    return "$fileChar$rank";
-  }
-
-  int _fromAlgebraic(String square) {
-    if (square.length != 2) return -1;
-    int file = square.codeUnitAt(0) - 'a'.codeUnitAt(0);
-    int rank = int.parse(square[1]);
-    return (8 - rank) * 8 + file;
-  }
-
-  squares.BoardState _createBoardState(bishop.Game game) {
-    String fenBoard = game.fen.split(' ')[0];
-    List<String> boardList = [];
+    _chess.reset();
+    fenHistory.clear();
+    moveHistorySan.clear();
+    currentMoveIndex.value = -1;
+    gameOverMessage.value = '';
+    _lastProcessedFen = '';
     
-    for (String row in fenBoard.split('/')) {
-      for (int i = 0; i < row.length; i++) {
-        String char = row[i];
-        int? empty = int.tryParse(char);
-        if (empty != null) {
-          boardList.addAll(List.filled(empty, ''));
+    _connectToGameStream();
+  }
+
+  void _connectToGameStream() {
+    _db.collection('games').doc(gameId.value).snapshots().listen((snapshot) async {
+      if (!snapshot.exists) return;
+
+      var data = snapshot.data() as Map<String, dynamic>;
+      
+      String myUid = AuthController.instance.user!.uid;
+      if (data['white'] == myUid) myColor.value = 'w';
+      else if (data['black'] == myUid) myColor.value = 'b';
+
+      String serverFen = data['fen'];
+      Map<String, dynamic>? lastMoveData = data['lastMove'];
+      String? winner = data['winner']; 
+      
+      if (data.containsKey('movesLeft')) {
+        movesLeft.value = data['movesLeft'];
+      }
+
+      List<dynamic> serverMoves = data['moves'] ?? [];
+      List<String> groupedMoves = [];
+      String currentGroup = "";
+      String lastColor = "";
+
+      for (var moveObj in serverMoves) {
+        String rawMove = moveObj.toString();
+        String colorPrefix = "";
+        String cleanMove = rawMove;
+
+        if (rawMove.length > 2 && rawMove[1] == ':') {
+          colorPrefix = rawMove.substring(0, 1);
+          cleanMove = rawMove.substring(2);
+        }
+
+        if (colorPrefix == 'w') {
+          cleanMove = cleanMove.replaceAll('K', '♔').replaceAll('Q', '♕').replaceAll('R', '♖').replaceAll('B', '♗').replaceAll('N', '♘');
+        } else if (colorPrefix == 'b') {
+          cleanMove = cleanMove.replaceAll('K', '♔').replaceAll('Q', '♕').replaceAll('R', '♜').replaceAll('B', '♝').replaceAll('N', '♞');
+        }
+
+        if (cleanMove == "Pass") {
+           if (currentGroup.isNotEmpty) groupedMoves.add(currentGroup);
+           groupedMoves.add("Pass");
+           currentGroup = "";
+           lastColor = colorPrefix == 'w' ? 'b' : 'w';
+           continue;
+        }
+
+        if (colorPrefix == lastColor && colorPrefix.isNotEmpty) {
+          if (currentGroup.isNotEmpty) currentGroup += ", ";
+          currentGroup += cleanMove;
         } else {
-          boardList.add(char);
+          if (currentGroup.isNotEmpty) groupedMoves.add(currentGroup);
+          currentGroup = cleanMove;
+          lastColor = colorPrefix;
         }
       }
-    }
+      if (currentGroup.isNotEmpty) groupedMoves.add(currentGroup);
+      moveHistorySan.assignAll(groupedMoves);
 
-    int? from;
-    int? to;
-    
-    if (lastMoveConfig != null) {
-      from = _fromAlgebraic(lastMoveConfig!['from']);
-      to = _fromAlgebraic(lastMoveConfig!['to']);
-    } else if (game.history.isNotEmpty) {
-      var lastMove = game.history.last.move;
-      if (lastMove != null) {
-        String fromAlg = game.size.squareName(lastMove.from);
-        String toAlg = game.size.squareName(lastMove.to);
-        from = _fromAlgebraic(fromAlg);
-        to = _fromAlgebraic(toAlg);
-      }
-    }
-
-    return squares.BoardState(
-      board: boardList, 
-      lastFrom: from,
-      lastTo: to,
-      orientation: myColor.value == 'b' ? 1 : 0, 
-    );
-  }
-
-  void _updateUi() {
-    boardKey = DateTime.now().millisecondsSinceEpoch.toString();
-    boardState = _createBoardState(game);
-    update();
-  }
-
-  void handleTap(int square) {
-    if (currentMoveIndex.value != fenHistory.length - 1) return;
-    if (!isMyTurn.value) return;
-
-    String piece = boardState.board[square];
-    bool isOwnPiece = false;
-    if (piece.isNotEmpty) {
-      bool isWhitePiece = piece == piece.toUpperCase();
-      isOwnPiece = (myColor.value == 'w' && isWhitePiece) || 
-                   (myColor.value == 'b' && !isWhitePiece);
-    }
-
-    if (selectedSquare.value != null) {
-      if (selectedSquare.value == square) {
-        selectedSquare.value = null;
-        validMoves.clear();
-        update();
-        return;
-      }
-
-      if (isOwnPiece) {
-        selectedSquare.value = square;
-        _calculateValidMoves(square);
-        update();
-        return;
-      }
+      gameMode.value = data['mode'] ?? 'classical';
       
-      onUserMove(squares.Move(from: selectedSquare.value!, to: square));
-    } else {
-      if (isOwnPiece) {
-        selectedSquare.value = square;
-        _calculateValidMoves(square);
-        update();
+      if (data['dice'] != null) {
+        currentDice.assignAll(List<int>.from(data['dice']));
+      } else {
+        currentDice.clear();
       }
-    }
-  }
 
-  void _calculateValidMoves(int square) {
-    String algFrom = _toAlgebraic(square);
-    var moves = game.generateLegalMoves().where((m) {
-      String mFrom = game.size.squareName(m.from);
-      return mFrom == algFrom;
+      if (serverMoves.isEmpty && movesLeft.value == 0) {
+         if (gameMode.value == 'vegas') movesLeft.value = 1;
+         if (gameMode.value == 'boa') movesLeft.value = 3; 
+      }
+
+      if (serverFen == chess_lib.Chess.DEFAULT_POSITION && serverMoves.isEmpty && fenHistory.isEmpty) {
+        SoundController.instance.playGameStart(); 
+      }
+
+      if (serverFen == chess_lib.Chess.DEFAULT_POSITION && serverMoves.isEmpty) {
+        if (isGameEnded.value) { Get.back(); isGameEnded.value = false; }
+        gameOverMessage.value = '';
+        _chess.reset();
+        fenHistory.clear();
+        moveHistorySan.clear();
+        currentMoveIndex.value = -1;
+      }
+
+      if (_lastProcessedFen == serverFen && winner == null) return;
+      _lastProcessedFen = serverFen;
+
+      _chess.load(serverFen);
+
+      bool isOpponentMove = lastMoveData != null && lastMoveData['by'] != myColor.value;
+      if (isOpponentMove && lastMoveData != null && !isAnimating.value) {
+        if (lastMoveData['from'] != 'pass' && lastMoveData['from'] != lastMoveData['to']) {
+           await _triggerAnimation(lastMoveData['from'], lastMoveData['to'], serverFen);
+           if (!_chess.game_over) {
+               if (_chess.in_check) {
+                  SoundController.instance.playCheck();
+               } 
+               else if (serverMoves.isNotEmpty && serverMoves.last.toString().contains('x')) {
+                  SoundController.instance.playCapture(); 
+               } 
+               else {
+                  SoundController.instance.playOpponentMove(); 
+               }
+           }
+        }
+      }
+
+      _updateHistoryAndUI(serverFen);
+
+      if (isMyTurn.value) {
+        if (gameMode.value == 'dice' || gameMode.value == 'boa') {
+          _checkDiceLegalMoves();
+        } else {
+          canMakeAnyMove.value = true;
+        }
+      }
+
+      if (!isGameEnded.value) {
+        if (winner != null) {
+           SoundController.instance.playGameEnd(); 
+           if (winner == 'draw') _showGameOverDialog("Game Drawn", "by mutual agreement");
+           else _handleResignation(winner);
+        } else if (_chess.in_checkmate) {
+           SoundController.instance.playGameEnd(); 
+           String winnerColor = _chess.turn == chess_lib.Color.WHITE ? "Black" : "White";
+           _showGameOverDialog("$winnerColor Won", "by checkmate");
+           if (winner == null) _db.collection('games').doc(gameId.value).update({'winner': winnerColor == "White" ? 'w' : 'b'});
+        } else if (_chess.in_draw || _chess.in_stalemate) {
+           SoundController.instance.playGameEnd(); 
+           _showGameOverDialog("Draw", "by stalemate");
+           if (winner == null) _db.collection('games').doc(gameId.value).update({'winner': 'draw'});
+        }
+      }
     });
-    
-    validMoves.value = moves.map((m) {
-      String mTo = game.size.squareName(m.to);
-      return _fromAlgebraic(mTo);
-    }).toList();
-  }
-
-  void onUserMove(squares.Move move) async {
-    selectedSquare.value = null;
-    validMoves.clear();
-
-    if (currentMoveIndex.value != fenHistory.length - 1) return;
-    if (!isMyTurn.value) return;
-
-    String pieceSymbol = boardState.board[move.from]; 
-    if (pieceSymbol.isEmpty) return;
-    
-    bool isWhitePiece = pieceSymbol == pieceSymbol.toUpperCase();
-    if (myColor.value == 'w' && !isWhitePiece) return;
-    if (myColor.value == 'b' && isWhitePiece) return;
-
-    int type = _symbolToType(pieceSymbol);
-
-    if (gameMode.value == 'dice') {
-      int diceVal = type; 
-      if (!currentDice.contains(diceVal)) {
-        Get.snackbar("Invalid Move", "Dice require a ${_getPieceName(diceVal)}");
-        _updateUi();
-        return;
-      }
-    }
-
-    bool isPawn = type == 1; 
-    int toIndex = move.to;
-    bool isPromoRank = (toIndex < 8 || toIndex >= 56);
-    
-    String? promoChar;
-    if (isPawn && isPromoRank && move.promo == null) {
-        promoChar = await _showPromotionDialog();
-        if (promoChar == null) {
-          _updateUi();
-          return; 
-        }
-    }
-
-    String algFrom = _toAlgebraic(move.from);
-    String algTo = _toAlgebraic(move.to);
-    String moveString = "$algFrom$algTo${promoChar ?? ''}";
-
-    if (!game.isMoveValid(moveString)) {
-      _updateUi();
-      return;
-    }
-
-    var bishopMove = game.getMove(moveString);
-    String san = bishopMove != null ? game.toSan(bishopMove) : moveString;
-
-    bool result = game.makeMoveString(moveString);
-    
-    if (result) {
-      lastMoveConfig = { 'from': algFrom, 'to': algTo };
-      
-      fenHistory.add(game.fen);
-      currentMoveIndex.value = fenHistory.length - 1;
-      
-      enableAnimation = false;
-      _updateUi(); 
-      _submitMoveToServer(moveString, san);
-    } else {
-      _updateUi();
-    }
-  }
-
-  Future<void> _submitMoveToServer(String algMove, String san) async {
-    try {
-      List<int> nextDice = [];
-      if (gameMode.value == 'dice') {
-          nextDice = [Random().nextInt(6)+1, Random().nextInt(6)+1, Random().nextInt(6)+1];
-      }
-
-      String fromAlg = algMove.substring(0, 2);
-      String toAlg = algMove.substring(2, 4);
-
-      await _db.collection('games').doc(gameId.value).update({
-        'fen': game.fen, 
-        'moves': FieldValue.arrayUnion([san]), 
-        'lastMove': {
-          'from': fromAlg, 
-          'to': toAlg, 
-          'by': myColor.value
-        },
-        'dice': nextDice 
-      });
-    } catch (e) {
-      print("Firestore Error: $e");
-    }
-  }
-
-  void jumpToMove(int index) {
-    if (index < 0 || index >= fenHistory.length) return;
-    currentMoveIndex.value = index;
-    
-    bishop.Game tempGame = bishop.Game(variant: bishop.Variant.standard());
-    tempGame.loadFen(fenHistory[index]);
-    
-    selectedSquare.value = null;
-    validMoves.clear();
-    lastMoveConfig = null; 
-    
-    enableAnimation = false;
-    boardKey = "history_$index"; 
-    boardState = _createBoardState(tempGame);
-    update();
-  }
-
-  void nextMove() => jumpToMove(currentMoveIndex.value + 1);
-  void prevMove() => jumpToMove(currentMoveIndex.value - 1);
-  void jumpToLive() {
-    currentMoveIndex.value = fenHistory.length - 1;
-    bishop.Game liveGame = bishop.Game(variant: bishop.Variant.standard());
-    liveGame.loadFen(fenHistory.last);
-    
-    lastMoveConfig = null; 
-    enableAnimation = false;
-    boardKey = "live";
-    boardState = _createBoardState(liveGame);
-    update(); 
-  }
-
-  int _symbolToType(String symbol) {
-    switch (symbol.toLowerCase()) {
-      case 'p': return 1;
-      case 'n': return 2;
-      case 'b': return 3;
-      case 'r': return 4;
-      case 'q': return 5;
-      case 'k': return 6;
-      default: return 0;
-    }
   }
 
   void _checkDiceLegalMoves() {
-    var moves = game.generateLegalMoves();
-    bool found = false;
-    for (var move in moves) {
-      int pieceType = game.board[move.from].abs(); 
-      if (currentDice.contains(pieceType)) {
-        found = true;
-        break;
+    final tempGame = chess_lib.Chess();
+    tempGame.load(_chess.fen);
+    List<dynamic> allMoves = tempGame.moves({'asObjects': true});
+    bool foundLegalMove = false;
+    
+    for (var move in allMoves) {
+      chess_lib.PieceType type;
+      if (move is Map) type = move['piece']; 
+      else type = move.piece; 
+      
+      int diceValue = _getPieceDiceValue(type);
+      if (currentDice.contains(diceValue)) {
+        foundLegalMove = true;
+        break; 
       }
     }
-    canMakeAnyMove.value = found;
+    canMakeAnyMove.value = foundLegalMove;
+    
+    if (!foundLegalMove && isMyTurn.value && _chess.in_check) {
+      Get.snackbar("Checkmate!", "Bad luck! Your dice cannot save the King.", 
+        backgroundColor: Colors.red, colorText: Colors.white, duration: const Duration(seconds: 4));
+      Future.delayed(const Duration(seconds: 3), () => resignGame());
+    }
   }
 
-  Future<String?> _showPromotionDialog() async {
-     bool isWhite = myColor.value == 'w';
-     return await Get.dialog<String>(
+  Future<void> _triggerAnimation(String from, String to, String targetFen) async {
+    final tempGame = chess_lib.Chess();
+    tempGame.load(targetFen);
+    final piece = tempGame.get(to); 
+    
+    if (piece != null) {
+      animPieceChar.value = piece.type.toString(); 
+      if (piece.color == chess_lib.Color.WHITE) {
+        animPieceChar.value = animPieceChar.value.toUpperCase();
+      } else {
+        animPieceChar.value = animPieceChar.value.toLowerCase();
+      }
+      
+      animStartSquare.value = from;
+      animEndSquare.value = from;
+      isAnimating.value = true;
+      
+      await Future.delayed(const Duration(milliseconds: 20));
+      animEndSquare.value = to; 
+      await Future.delayed(const Duration(milliseconds: 300));
+      isAnimating.value = false;
+    }
+  }
+
+  void _updateHistoryAndUI(String serverFen) {
+    if (fenHistory.isEmpty || fenHistory.last != serverFen) {
+        fenHistory.add(serverFen);
+        if (currentMoveIndex.value == fenHistory.length - 2 || currentMoveIndex.value == -1) {
+           jumpToLatest();
+        }
+    }
+
+    if (currentMoveIndex.value == fenHistory.length - 1 || currentMoveIndex.value == -1) {
+        displayFen.value = serverFen;
+    }
+    
+    fen.value = serverFen;
+    isWhiteTurn.value = _chess.turn == chess_lib.Color.WHITE;
+
+    if (_chess.in_check) {
+      String? kingSquare = _findKingSquare(_chess.turn);
+      if (kingSquare != null) {
+        validMoveHighlights[kingSquare] = Colors.red.withOpacity(0.6);
+      }
+    } else {
+      if (_selectedSquare == null) {
+        validMoveHighlights.clear();
+      }
+    }
+
+    isMyTurn.value = (_chess.turn == chess_lib.Color.WHITE && myColor.value == 'w') ||
+                     (_chess.turn == chess_lib.Color.BLACK && myColor.value == 'b');
+  }
+
+  Future<void> makeMove({required String from, required String to, String? promotion, bool isTap = false}) async {
+    if (isGameEnded.value) return; 
+    if (currentMoveIndex.value != fenHistory.length - 1) return;
+    if (!isMyTurn.value) return;
+
+    int pieceValue = 0; 
+
+    if (gameMode.value == 'dice' || gameMode.value == 'boa') {
+      final piece = _chess.get(from);
+      if (piece != null) {
+        pieceValue = _getPieceDiceValue(piece.type);
+        if (!currentDice.contains(pieceValue)) {
+          Get.snackbar("Invalid Move", "Must match dice!", snackPosition: SnackPosition.BOTTOM, duration: const Duration(seconds: 1));
+          return;
+        }
+      }
+    }
+
+    if (promotion == null && _isPromotion(from, to)) {
+      promotion = await pickPromotionCharacter();
+      if (promotion == null) return; 
+    }
+
+    try {
+      final moveMap = {'from': from, 'to': to};
+      if (promotion != null) moveMap['promotion'] = promotion;
+
+      bool isCapture = _chess.get(to) != null; 
+
+      bool success = _chess.move(moveMap);
+      
+      if (success) {
+        if (!_chess.game_over) {
+            bool isCheck = _chess.in_check; 
+            if (isCheck) {
+               SoundController.instance.playCheck();
+            } else if (isCapture) {
+               SoundController.instance.playCapture();
+            } else {
+               SoundController.instance.playMove();
+            }
+        }
+
+        String pgn = _chess.pgn();
+        List<String> pgnTokens = pgn.split(' ').where((t) => t.trim().isNotEmpty && !t.contains('.')).toList();
+        String moveSan = pgnTokens.isNotEmpty ? pgnTokens.last : '';
+        
+        if (['1-0', '0-1', '1/2-1/2', '*'].contains(moveSan) && pgnTokens.length > 1) {
+           moveSan = pgnTokens[pgnTokens.length - 2];
+        }
+
+        String signedMove = "${myColor.value}:$moveSan"; 
+
+        String finalFen = _chess.fen;
+        int nextMovesLeft = 0;
+        List<int> nextDice = List.from(currentDice);
+
+        clearHighlights();
+        if (isTap) await _triggerAnimation(from, to, finalFen);
+
+        displayFen.value = finalFen; 
+
+        if (gameMode.value == 'boa') {
+          if (nextDice.contains(pieceValue)) {
+            nextDice.remove(pieceValue); 
+          }
+          
+          int current = movesLeft.value > 0 ? movesLeft.value : 1;
+          nextMovesLeft = current - 1;
+
+          if (_chess.in_check || _chess.in_checkmate) {
+            nextMovesLeft = 0;
+            if (_chess.in_check) {
+               Get.snackbar("Check!", "Turn ends immediately!", 
+                 backgroundColor: Colors.red, colorText: Colors.white, duration: const Duration(seconds: 2));
+            }
+          }
+
+          if (nextMovesLeft > 0) {
+            List<String> parts = finalFen.split(' ');
+            parts[1] = myColor.value; 
+            parts[3] = '-'; 
+            finalFen = parts.join(' ');
+            
+            _chess.load(finalFen);
+            displayFen.value = finalFen;
+          } else {
+            nextMovesLeft = 3;
+            nextDice = [Random().nextInt(6)+1, Random().nextInt(6)+1, Random().nextInt(6)+1];
+          }
+        }
+        else if (gameMode.value == 'vegas') {
+          int current = movesLeft.value > 0 ? movesLeft.value : 1; 
+          nextMovesLeft = current - 1;
+
+          if (_chess.in_check || _chess.in_checkmate) {
+            nextMovesLeft = 0;
+            if (_chess.in_check) {
+               Get.snackbar("Check!", "Turn ends immediately!", 
+                 backgroundColor: Colors.red, colorText: Colors.white, duration: const Duration(seconds: 2));
+            }
+          }
+
+          if (nextMovesLeft > 0) {
+            List<String> parts = finalFen.split(' ');
+            parts[1] = myColor.value;
+            parts[3] = '-';
+            finalFen = parts.join(' ');
+            
+            _chess.load(finalFen);
+            displayFen.value = finalFen;
+          } else {
+            int roll = Random().nextInt(6) + 1;
+            if (roll <= 2) nextMovesLeft = 1;
+            else if (roll <= 4) nextMovesLeft = 2;
+            else nextMovesLeft = 3;
+            nextDice = [roll];
+          }
+        } 
+        else if (gameMode.value == 'dice') {
+           nextDice = [Random().nextInt(6)+1, Random().nextInt(6)+1, Random().nextInt(6)+1];
+        }
+
+        await _db.collection('games').doc(gameId.value).update({
+          'fen': finalFen, 
+          'pgn': _chess.pgn(),
+          'moves': FieldValue.arrayUnion([signedMove]), 
+          'lastMove': {'from': from, 'to': to, 'promotion': promotion, 'by': myColor.value},
+          'dice': nextDice,
+          'movesLeft': nextMovesLeft
+        });
+      } else {
+        displayFen.refresh(); 
+      }
+    } catch (e) {
+      displayFen.refresh();
+    }
+  }
+
+  bool _isPromotion(String from, String to) {
+    final piece = _chess.get(from);
+    if (piece == null || piece.type != chess_lib.PieceType.PAWN) return false;
+    if (piece.color == chess_lib.Color.WHITE && to.endsWith('8')) return true;
+    if (piece.color == chess_lib.Color.BLACK && to.endsWith('1')) return true;
+    return false;
+  }
+
+  Future<String?> pickPromotionCharacter() async {
+    bool isWhite = myColor.value == 'w';
+    return await Get.dialog<String>(
       SimpleDialog(
         title: const Text('Promote to:', textAlign: TextAlign.center),
         backgroundColor: const Color(0xFFF0D9B5),
@@ -339,10 +431,10 @@ class GameController extends GetxController {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              _promoOption("Queen", 'q', isWhite ? WhiteQueen() : BlackQueen()),
-              _promoOption("Rook", 'r', isWhite ? WhiteRook() : BlackRook()),
-              _promoOption("Bishop", 'b', isWhite ? WhiteBishop() : BlackBishop()),
-              _promoOption("Knight", 'n', isWhite ? WhiteKnight() : BlackKnight()),
+              _promoOption('q', isWhite ? WhiteQueen() : BlackQueen()),
+              _promoOption('r', isWhite ? WhiteRook() : BlackRook()),
+              _promoOption('b', isWhite ? WhiteBishop() : BlackBishop()),
+              _promoOption('n', isWhite ? WhiteKnight() : BlackKnight()),
             ],
           )
         ],
@@ -351,7 +443,7 @@ class GameController extends GetxController {
     );
   }
 
-  Widget _promoOption(String label, String char, Widget icon) {
+  Widget _promoOption(String char, Widget icon) {
     return InkWell(
       onTap: () => Get.back(result: char),
       child: Padding(
@@ -361,179 +453,260 @@ class GameController extends GetxController {
     );
   }
 
-  String _getPieceName(int type) {
+  Future<void> passTurn() async {
+    if (!isMyTurn.value) return;
+    
+    if (gameMode.value == 'classical' || gameMode.value == 'vegas') return;
+    
+    _checkDiceLegalMoves();
+    if (canMakeAnyMove.value) {
+       Get.snackbar("Cannot Pass", "You have legal moves! You must play.", 
+         backgroundColor: Colors.red, colorText: Colors.white);
+       return;
+    }
+
+    String currentFen = _chess.fen;
+    List<String> fenParts = currentFen.split(' ');
+    
+    if (fenParts.length >= 2) {
+      fenParts[1] = fenParts[1] == 'w' ? 'b' : 'w'; 
+      if (fenParts.length >= 6) {
+        try {
+          if (fenParts[1] == 'w') {
+            fenParts[5] = (int.parse(fenParts[5]) + 1).toString();
+          }
+        } catch (e) {}
+      }
+    }
+    String newFen = fenParts.join(' ');
+
+    List<int> nextDice = [];
+    int nextMovesLeft = 0;
+
+    if (gameMode.value == 'boa') {
+       nextMovesLeft = 3; 
+       nextDice = [Random().nextInt(6)+1, Random().nextInt(6)+1, Random().nextInt(6)+1];
+    } else {
+       nextDice = [Random().nextInt(6)+1, Random().nextInt(6)+1, Random().nextInt(6)+1];
+    }
+
+    clearHighlights();
+    
+    await _db.collection('games').doc(gameId.value).update({
+      'fen': newFen,
+      'dice': nextDice,
+      'moves': FieldValue.arrayUnion(["Pass"]),
+      'lastMove': {'from': 'pass', 'to': 'pass', 'by': myColor.value},
+      'movesLeft': nextMovesLeft
+    });
+  }
+
+  int _getPieceDiceValue(chess_lib.PieceType type) {
     switch (type) {
-      case 1: return "Pawn";
-      case 2: return "Knight";
-      case 3: return "Bishop";
-      case 4: return "Rook";
-      case 5: return "Queen";
-      case 6: return "King";
-      default: return "Piece";
+      case chess_lib.PieceType.PAWN: return 1;
+      case chess_lib.PieceType.KNIGHT: return 2;
+      case chess_lib.PieceType.BISHOP: return 3;
+      case chess_lib.PieceType.ROOK: return 4;
+      case chess_lib.PieceType.QUEEN: return 5;
+      case chess_lib.PieceType.KING: return 6;
+      default: return 0;
+    }
+  }
+  
+  void onSquareTap(String square) {
+    if (isGameEnded.value) return; 
+    if (validMoveHighlights.containsKey(square) && validMoveHighlights[square] != Colors.red.withOpacity(0.6)) {
+       if (validMoveHighlights[square]!.value == const Color(0xFF81C784).withOpacity(0.6).value) {
+         makeMove(from: _selectedSquare!, to: square, isTap: true);
+         return;
+       }
+    }
+    final piece = _chess.get(square);
+    bool isMyPiece = piece != null && 
+                     ((myColor.value == 'w' && piece.color == chess_lib.Color.WHITE) ||
+                      (myColor.value == 'b' && piece.color == chess_lib.Color.BLACK));
+    if (isMyPiece) {
+      _selectedSquare = square;
+      if (gameMode.value == 'dice' || gameMode.value == 'boa') {
+         int val = _getPieceDiceValue(piece.type);
+         if (!currentDice.contains(val)) {
+            return;
+         }
+      }
+      final moves = _chess.moves({'square': square, 'verbose': true});
+      final newHighlights = <String, Color>{};
+      if (_chess.in_check) {
+        String? kingSquare = _findKingSquare(_chess.turn);
+        if (kingSquare != null) {
+          newHighlights[kingSquare] = Colors.red.withOpacity(0.6);
+        }
+      }
+      newHighlights[square] = const Color(0xFF64B5F6).withOpacity(0.6); 
+      for (var move in moves) {
+        String targetSquare = move['to']; 
+        newHighlights[targetSquare] = const Color(0xFF81C784).withOpacity(0.6); 
+      }
+      validMoveHighlights.assignAll(newHighlights);
+      validMoveHighlights.refresh(); 
+    } else {
+      clearHighlights();
     }
   }
 
-  Future<void> resignGame() async { 
+  void clearHighlights() {
+    validMoveHighlights.clear();
+    _selectedSquare = null;
+    if (_chess.in_check) {
+      String? kingSquare = _findKingSquare(_chess.turn);
+      if (kingSquare != null) {
+        validMoveHighlights[kingSquare] = Colors.red.withOpacity(0.6);
+      }
+    }
+  }
+  
+  String? _findKingSquare(chess_lib.Color color) {
+    final files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
+    final ranks = ['1', '2', '3', '4', '5', '6', '7', '8'];
+    for (var file in files) {
+      for (var rank in ranks) {
+        String square = '$file$rank';
+        final piece = _chess.get(square);
+        if (piece != null && 
+            piece.type == chess_lib.PieceType.KING && 
+            piece.color == color) {
+          return square;
+        }
+      }
+    }
+    return null;
+  }
+  
+  Future<void> resignGame() async {
     String winner = myColor.value == 'w' ? 'b' : 'w';
-    await _db.collection('games').doc(gameId.value).update({'winner': winner});
+    await _db.collection('games').doc(gameId.value).update({
+      'winner': winner
+    });
   }
-  
+
   Future<void> declareDraw() async {
-    await _db.collection('games').doc(gameId.value).update({'winner': 'draw'});
+    await _db.collection('games').doc(gameId.value).update({
+      'winner': 'draw'
+    });
   }
-  
-  void _handleGameOver(String winner) {
-    if (isGameEnded.value) return;
-    
+
+  Future<void> triggerRematch() async {
+    var doc = await _db.collection('games').doc(gameId.value).get();
+    String currentWhite = doc['white'];
+    String currentBlack = doc['black'];
+    String mode = doc['mode'] ?? 'classical';
+    List<int> initialDice = [];
+    if (mode == 'dice' || mode == 'boa') {
+      Random rng = Random();
+      initialDice = [rng.nextInt(6)+1, rng.nextInt(6)+1, rng.nextInt(6)+1];
+    }
+    await _db.collection('games').doc(gameId.value).update({
+      'white': currentBlack,
+      'black': currentWhite,
+      'fen': chess_lib.Chess.DEFAULT_POSITION,
+      'pgn': '',
+      'moves': [],
+      'lastMove': null,
+      'winner': null,
+      'dice': initialDice,
+      'movesLeft': (mode == 'vegas') ? 1 : (mode == 'boa' ? 3 : 0)
+    });
+  }
+
+  void _handleResignation(String winnerColor) {
+    String title = winnerColor == 'w' ? "White Won" : "Black Won";
+    _showGameOverDialog(title, "by resignation");
+  }
+
+  void _showGameOverDialog(String title, String subtitle) {
     isGameEnded.value = true;
-    _unsubscribeFromGame(); 
-
-    bool isDraw = winner == 'draw';
-    bool iWon = (winner == myColor.value);
-    
-    String title = isDraw ? "Game Drawn" : (iWon ? "You Won!" : "You Lost");
-    IconData icon = isDraw ? Icons.handshake : (iWon ? Icons.emoji_events_rounded : Icons.sentiment_dissatisfied_rounded);
-    Color iconColor = isDraw ? Colors.brown : (iWon ? Colors.amber[700]! : Colors.grey);
-    String message = isDraw ? "Good Game!" : (iWon ? "Congratulations!" : "Better luck next time.");
-
-    Get.dialog(
-      Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        backgroundColor: const Color(0xFFF5F5F5),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 32.0, horizontal: 24.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
+    Get.defaultDialog(
+      title: title,
+      titleStyle: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Color(0xFF5D4037)),
+      backgroundColor: const Color(0xFFF0D9B5),
+      radius: 12,
+      content: Column(
+        children: [
+          const Icon(Icons.emoji_events, size: 60, color: Color(0xFFB58863)),
+          const SizedBox(height: 12),
+          Text(subtitle, style: const TextStyle(fontSize: 18, color: Color(0xFF5D4037), fontWeight: FontWeight.w500)),
+          const SizedBox(height: 24),
+        ],
+      ),
+      barrierDismissible: false, 
+      actions: [
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: iconColor.withOpacity(0.1),
-                  shape: BoxShape.circle,
+              OutlinedButton(
+                onPressed: () => Get.offAll(() => const LobbyView()),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: Color(0xFF5D4037), width: 2),
+                  foregroundColor: const Color(0xFF5D4037),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
                 ),
-                child: Icon(icon, size: 64, color: iconColor),
+                child: const Text("Lobby", style: TextStyle(fontWeight: FontWeight.bold)),
               ),
-              const SizedBox(height: 24),
-              
-              Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 28, 
-                  fontWeight: FontWeight.bold,
-                  color: Colors.black87
-                ),
-              ),
-              const SizedBox(height: 8),
-              
-              Text(
-                message,
-                style: TextStyle(
-                  fontSize: 16, 
-                  color: Colors.grey[600],
-                  fontStyle: FontStyle.italic
+              const SizedBox(width: 10),
+              ElevatedButton.icon(
+                onPressed: () {
+                  Get.back();
+                  isGameEnded.value = false;
+                  triggerRematch();
+                },
+                icon: const Icon(Icons.refresh, color: Colors.white),
+                label: const Text("Rematch", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFB58863),
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                  elevation: 4,
                 ),
               ),
-              const SizedBox(height: 32),
-              
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () => Get.offAll(() => const LobbyView()),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: const Color(0xFF8B4513), // SaddleBrown
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    elevation: 2,
-                  ),
-                  child: const Text(
-                    "Back to Lobby", 
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)
-                  ),
-                ),
-              )
             ],
           ),
-        ),
-      ),
-      barrierDismissible: false,
+        )
+      ]
     );
   }
 
-  void setGame(String id, String assignedColor) {
-    _unsubscribeFromGame();
-    
-    gameId.value = id;
-    myColor.value = assignedColor; 
-    isGameEnded.value = false;
-    lastMoveConfig = null;
-    
-    _initGame(); 
-    
-    _connectToGameStream();
+  void jumpToLatest() {
+    if (fenHistory.isEmpty) return;
+    currentMoveIndex.value = fenHistory.length - 1;
+    displayFen.value = fenHistory.last;
   }
 
-  void _connectToGameStream() {
-    _gameSubscription = _db.collection('games').doc(gameId.value).snapshots().listen((snapshot) async {
-      if (!snapshot.exists) return;
-      var data = snapshot.data() as Map<String, dynamic>;
-      
-      String myUid = AuthController.instance.user!.uid;
-      if (data['white'] == myUid) myColor.value = 'w';
-      else if (data['black'] == myUid) myColor.value = 'b';
+  void goToPrevious() {
+    if (currentMoveIndex.value > 0) {
+      currentMoveIndex.value--;
+      displayFen.value = fenHistory[currentMoveIndex.value];
+    }
+  }
 
-      String serverFen = data['fen'];
-      List<dynamic> serverMoves = data['moves'] ?? [];
-      String? winner = data['winner'];
-      
-      if (data['lastMove'] != null) {
-        lastMoveConfig = data['lastMove'];
-      }
-      
-      List<String> formattedMoves = [];
-      for (var move in serverMoves) formattedMoves.add(move.toString());
-      moveHistorySan.assignAll(formattedMoves);
+  void goToNext() {
+    if (currentMoveIndex.value < fenHistory.length - 1) {
+      currentMoveIndex.value++;
+      displayFen.value = fenHistory[currentMoveIndex.value];
+    }
+  }
 
-      gameMode.value = data['mode'] ?? 'classical';
-      if (data['dice'] != null) currentDice.assignAll(List<int>.from(data['dice']));
-      else currentDice.clear();
+  void jumpToStart() {
+    if (fenHistory.isNotEmpty) {
+      currentMoveIndex.value = 0;
+      displayFen.value = fenHistory[0];
+    }
+  }
 
-      bool isFirstLoad = fenHistory.length == 1 && fenHistory.first == game.fen;
-
-      if (game.fen != serverFen || isFirstLoad) {
-        game.loadFen(serverFen);
-        
-        if (fenHistory.isEmpty || fenHistory.last != serverFen) {
-           fenHistory.add(serverFen);
-           currentMoveIndex.value = fenHistory.length - 1;
-        }
-        displayFen.value = serverFen;
-        
-        enableAnimation = true;
-        _updateUi();
-      }
-
-      bool isWhiteTurn = game.turn == 0; 
-      isMyTurn.value = (isWhiteTurn && myColor.value == 'w') ||
-                       (!isWhiteTurn && myColor.value == 'b');
-
-      if (isMyTurn.value && gameMode.value == 'dice') {
-        _checkDiceLegalMoves();
-      } else {
-        canMakeAnyMove.value = true;
-      }
-
-      if (!isGameEnded.value) {
-        if (winner != null) {
-           _handleGameOver(winner);
-        } else if (game.gameOver) {
-           if (game.winner == 0) _handleGameOver('w');
-           else if (game.winner == 1) _handleGameOver('b');
-           else _handleGameOver('draw');
-        }
-      }
-    });
+  void jumpToMove(int index) {
+    int target = index + 1;
+    if (target < fenHistory.length) {
+      currentMoveIndex.value = target;
+      displayFen.value = fenHistory[target];
+    }
   }
 }

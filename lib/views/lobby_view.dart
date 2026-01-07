@@ -1,184 +1,300 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:squares/squares.dart';
-import 'package:bishop/bishop.dart' as bishop;
-import 'dart:math';
+import 'package:simple_chess_board/simple_chess_board.dart';
+import 'dart:math'; 
 import '../controllers/auth_controller.dart';
 import '../controllers/matchmaking_controller.dart';
-import '../data/chess_terms_data.dart';
+import '../controllers/sound_controller.dart';
 import '../models/chess_term.dart';
+import '../data/chess_terms_data.dart';
+import '../widgets/board_overlay.dart';
 import 'history_view.dart';
 
-class LobbyView extends StatefulWidget {
+class LobbyView extends StatelessWidget {
   const LobbyView({super.key});
 
   @override
-  State<LobbyView> createState() => _LobbyViewState();
-}
-
-class _LobbyViewState extends State<LobbyView> {
-  late ChessTerm randomTerm;
-  late BoardController miniBoardController;
-
-  @override
-  void initState() {
-    super.initState();
-    randomTerm = chessTerms[Random().nextInt(chessTerms.length)];
-
-    bishop.Game tempGame = bishop.Game(variant: bishop.Variant.standard());
-    tempGame.loadFen(randomTerm.fen);
-
-    miniBoardController = BoardController(
-      state: _createBoardState(tempGame),
-      playState: PlayState.finished,
-      pieceSet: PieceSet.merida(),
-      theme: BoardTheme.brown,
-    );
-  }
-
-  BoardState _createBoardState(bishop.Game game) {
-    String fenBoard = game.fen.split(' ')[0];
-    List<String> boardList = [];
-    for (String row in fenBoard.split('/')) {
-      for (int i = 0; i < row.length; i++) {
-        String char = row[i];
-        int? empty = int.tryParse(char);
-        if (empty != null) {
-          boardList.addAll(List.filled(empty, ''));
-        } else {
-          boardList.add(char);
-        }
-      }
-    }
-    return BoardState(board: boardList);
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final AuthController authController = AuthController.instance;
-    final MatchmakingController matchController = Get.put(MatchmakingController());
+    final MatchmakingController matchmakingController = Get.put(MatchmakingController());
+    Get.put(SoundController()); 
+    final ChessTerm dailyTerm = chessTerms[Random().nextInt(chessTerms.length)];
 
-    const Color themeBeige = Color(0xFFF0D9B5);
-    const Color themeBrown = Color(0xFF5D4037);
+    const Color bgBeige = Color(0xFFF0D9B5); 
+    const Color textBrown = Color(0xFF5D4037);
 
     return Scaffold(
-      backgroundColor: themeBeige,
+      backgroundColor: Colors.white,
       appBar: AppBar(
+        title: const Text('Hipe Office Chess', style: TextStyle(fontWeight: FontWeight.bold)),
+        backgroundColor: bgBeige,
+        foregroundColor: textBrown,
+        centerTitle: true,
         leading: IconButton(
+          onPressed: () {
+            SoundController.instance.playClick();
+            Get.to(() => const HistoryView());
+          },
           icon: const Icon(Icons.history),
           tooltip: "Match History",
-          onPressed: () => Get.to(() => const HistoryView()),
         ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
-        foregroundColor: themeBrown,
         actions: [
           IconButton(
+            onPressed: () {
+              SoundController.instance.playClick();
+              AuthController.instance.signOut();
+            },
             icon: const Icon(Icons.logout),
-            onPressed: () => authController.signOut(),
-            tooltip: "Sign Out",
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(20.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.5),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: themeBrown.withOpacity(0.3)),
-              ),
-              child: Column(
-                children: [
-                  Text(randomTerm.title, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: themeBrown)),
-                  const SizedBox(height: 8),
-                  Text(randomTerm.description, textAlign: TextAlign.center, style: const TextStyle(fontSize: 15, color: Colors.black87)),
-                  const SizedBox(height: 15),
-
-                  AspectRatio(
-                    aspectRatio: 1.0,
-                    child: IgnorePointer(
-                      child: Board(
-                        state: miniBoardController.state,
-                        theme: BoardTheme.brown,
-                        pieceSet: PieceSet.merida(),
+      body: Column(
+        children: [
+          Expanded(
+            flex: 3, 
+            child: Container(
+              color: Colors.white, 
+              padding: const EdgeInsets.all(20),
+              child: Center(
+                child: AspectRatio(
+                  aspectRatio: 1.0, 
+                  child: Stack(
+                    children: [
+                      IgnorePointer( 
+                        child: SimpleChessBoard(
+                          fen: dailyTerm.fen,
+                          blackSideAtBottom: false,
+                          whitePlayerType: PlayerType.computer,
+                          blackPlayerType: PlayerType.computer,
+                          showCoordinatesZone: false,
+                          chessBoardColors: ChessBoardColors()
+                            ..lightSquaresColor = const Color(0xFFF0D9B5)
+                            ..darkSquaresColor = const Color(0xFFB58863),
+                          onPromote: () async => PieceType.queen,
+                          onMove: ({required ShortMove move}) {},
+                          onPromotionCommited: ({required ShortMove moveDone, required PieceType pieceType}) {},
+                          onTap: ({required String cellCoordinate}) {},
+                          cellHighlights: const {},
+                        ),
                       ),
+                      const BoardOverlay(isBlackAtBottom: false),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+
+          Expanded(
+            flex: 1, 
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 10.0),
+              width: double.infinity,
+              color: Colors.white,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Text(
+                    dailyTerm.title,
+                    style: const TextStyle(
+                      fontSize: 24, 
+                      fontWeight: FontWeight.bold,
+                      color: textBrown
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    dailyTerm.description,
+                    textAlign: TextAlign.center,
+                    maxLines: 3, 
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 16, 
+                      color: Colors.black87,
+                      height: 1.4 
                     ),
                   ),
                 ],
               ),
             ),
+          ),
 
-            const SizedBox(height: 40),
+          Expanded(
+            flex: 2,
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(30, 0, 30, 20),
+              color: Colors.white,
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  _buildModeButton(
+                    label: "Classical", 
+                    icon: Icons.play_arrow, 
+                    color: textBrown, 
+                    mode: 'classical',
+                    controller: matchmakingController
+                  ),
+                  const SizedBox(height: 10),
+                  
+                  _buildModeButton(
+                    label: "Dice", 
+                    icon: Icons.casino, 
+                    color: const Color(0xFFB58863), 
+                    mode: 'dice',
+                    controller: matchmakingController
+                  ),
+                  const SizedBox(height: 10),
 
-            Obx(() {
-              if (matchController.isSearching.value) {
-                return Column(
-                  children: const [
-                    CircularProgressIndicator(color: themeBrown),
-                    SizedBox(height: 20),
-                    Text("Searching for opponent...", style: TextStyle(color: themeBrown, fontSize: 16)),
-                  ],
-                );
-              } else {
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    _ModeButton(
-                      icon: Icons.person,
-                      label: "Classical",
-                      color: themeBrown,
-                      onPressed: () => matchController.joinQueue('classical')
-                    ),
-                    const SizedBox(height: 15),
-                    _ModeButton(
-                      icon: Icons.casino,
-                      label: "Dice",
-                      color: Colors.orange[800]!,
-                      onPressed: () => matchController.joinQueue('dice')
-                    ),
-                    const SizedBox(height: 15),
-                    _ModeButton(
-                      icon: Icons.monetization_on,
-                      label: "Vegas (Soon)",
-                      color: Colors.green[800]!,
-                      onPressed: null
-                    ),
-                  ],
-                );
-              }
-            }),
-          ],
-        ),
+                  _buildModeButton(
+                    label: "Vegas", 
+                    icon: Icons.local_fire_department, 
+                    color: const Color(0xFFD32F2F),
+                    mode: 'vegas',
+                    controller: matchmakingController
+                  ),
+                  const SizedBox(height: 10),
+
+                  _buildModeButton(
+                    label: "Boa", 
+                    icon: Icons.all_inclusive, 
+                    color: const Color(0xFF7B1FA2),
+                    mode: 'boa',
+                    controller: matchmakingController
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
-}
 
-class _ModeButton extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final Color color;
-  final VoidCallback? onPressed;
+  Widget _buildModeButton({
+    required String label, 
+    required IconData icon, 
+    required Color color, 
+    required String mode,
+    required MatchmakingController controller
+  }) {
+    return SizedBox(
+      width: double.infinity, 
+      height: 50, 
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: Obx(() {
+              bool isLoadingThis = controller.searchingMode.value == mode;
+              bool isAnyLoading = controller.searchingMode.value.isNotEmpty;
 
-  const _ModeButton({required this.icon, required this.label, required this.color, this.onPressed});
+              VoidCallback? onPressedLogic;
+              
+              if (isLoadingThis) {
+                onPressedLogic = () {
+                  SoundController.instance.playCancel();
+                  controller.cancelMatchmaking();
+                };
+              } else if (!isAnyLoading) {
+                onPressedLogic = () {
+                  SoundController.instance.playClick();
+                  controller.startMatchmaking(mode);
+                };
+              } else {
+                onPressedLogic = null;
+              }
 
-  @override
-  Widget build(BuildContext context) {
-    return ElevatedButton.icon(
-      onPressed: onPressed,
-      icon: Icon(icon),
-      label: Text(label),
-      style: ElevatedButton.styleFrom(
-        backgroundColor: color,
-        foregroundColor: Colors.white,
-        padding: const EdgeInsets.symmetric(vertical: 15),
-        textStyle: const TextStyle(fontSize: 18),
+              return ElevatedButton(
+                onPressed: onPressedLogic,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: isLoadingThis ? Colors.redAccent : color, 
+                  foregroundColor: Colors.white,
+                  disabledBackgroundColor: Colors.grey[300], 
+                  disabledForegroundColor: Colors.grey[500],
+                  elevation: isLoadingThis || !isAnyLoading ? 3 : 0, 
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                  padding: EdgeInsets.zero,
+                ),
+                child: isLoadingThis 
+                    ? const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+                          SizedBox(width: 12),
+                          Text("Cancel", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                        ],
+                      )
+                    : Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(icon, size: 24),
+                          const SizedBox(width: 12),
+                          Text(
+                            label,
+                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+              );
+            }),
+          ),
+          
+          Positioned(
+            right: 0,
+            top: 0,
+            bottom: 0,
+            child: Obx(() => controller.searchingMode.value == mode 
+              ? const SizedBox() 
+              : IconButton(
+                  icon: const Icon(Icons.info_outline, color: Colors.white70),
+                  tooltip: "Rules",
+                  onPressed: () {
+                    SoundController.instance.playClick(); 
+                    _showRulesDialog(mode, label);
+                  },
+                )
+            ),
+          )
+        ],
       ),
+    );
+  }
+
+  void _showRulesDialog(String mode, String title) {
+    String content = "";
+    switch (mode) {
+      case 'classical':
+        content = "Standard Chess Rules apply.\n\nTime to prove who is the true grandmaster of the office!";
+        break;
+      case 'dice':
+        content = "Roll 3 Dice each turn!\n\nYou can ONLY move pieces that match the dice values:\n\n♙ Pawn: 1\n♘ Knight: 2\n♗ Bishop: 3\n♖ Rook: 4\n♕ Queen: 5\n♔ King: 6\n\nIf you have no legal moves, you must Pass.";
+        break;
+      case 'vegas':
+        content = "High Stakes, variable moves!\n\nRoll 1 Die to determine your turn:\n\n🎲 1-2 = 1 Move\n🎲 3-4 = 2 Moves\n🎲 5-6 = 3 Moves\n\nPlan your combos carefully!";
+        break;
+      case 'boa':
+        content = "The Ultimate Chaos!\n\n• You ALWAYS get 3 Dice & 3 Moves.\n• You must use the dice to move specific pieces.\n• You can pass if stuck, but try to use all 3!";
+        break;
+    }
+
+    Get.defaultDialog(
+      title: title,
+      titleStyle: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Color(0xFF5D4037)),
+      content: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10),
+        child: Text(
+          content, 
+          textAlign: TextAlign.center,
+          style: const TextStyle(fontSize: 16, color: Colors.black87),
+        ),
+      ),
+      confirm: ElevatedButton(
+        onPressed: () {
+          SoundController.instance.playClick();
+          Get.back();
+        },
+        style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFF5D4037), foregroundColor: Colors.white),
+        child: const Text("Got it!"),
+      ),
+      radius: 10,
     );
   }
 }
