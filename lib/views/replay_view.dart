@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:simple_chess_board/simple_chess_board.dart';
-import 'package:chess_vectors_flutter/chess_vectors_flutter.dart';
 import '../controllers/replay_controller.dart';
 import '../widgets/board_overlay.dart';
-import '../utils/board_geometry.dart';
 
 class ReplayView extends StatelessWidget {
   const ReplayView({super.key});

@@ -7,6 +7,7 @@ import '../utils/board_geometry.dart';
 import '../utils/chess_utils.dart';
 import '../widgets/game/dice_row.dart';
 import '../widgets/game/move_list_bar.dart';
+import '../utils/game_dialogs.dart';
 
 class GameView extends StatelessWidget {
   const GameView({super.key});
@@ -41,11 +42,23 @@ class GameView extends StatelessWidget {
         foregroundColor: themeBrown,
         actions: [
           IconButton(
-            onPressed: () => _showDialog(context, "Offer Draw?", "Declare the game as a draw?", "Declare Draw", themeBrown, controller.declareDraw),
+            onPressed: () => GameDialogs.showConfirmation(
+              title: "Offer Draw?", 
+              content: "Declare the game as a draw?", 
+              confirmText: "Declare Draw", 
+              confirmColor: themeBrown, 
+              onConfirm: controller.declareDraw
+            ),
             icon: const Icon(Icons.handshake),
           ),
           IconButton(
-            onPressed: () => _showDialog(context, "Resign?", "Are you sure you want to give up?", "Yes, Resign", Colors.redAccent, controller.resignGame),
+            onPressed: () => GameDialogs.showConfirmation(
+              title: "Resign?", 
+              content: "Are you sure you want to give up?", 
+              confirmText: "Yes, Resign", 
+              confirmColor: Colors.redAccent, 
+              onConfirm: controller.resignGame
+            ),
             icon: const Icon(Icons.flag),
           ),
           const SizedBox(width: 8),
@@ -143,7 +156,7 @@ class GameView extends StatelessWidget {
                                 chessBoardColors: ChessBoardColors()..lightSquaresColor = const Color(0xFFF0D9B5)..darkSquaresColor = const Color(0xFFB58863),
                                 cellHighlights: Map.from(controller.validMoveHighlights),
                                 onPromote: () async {
-                                  String? char = await controller.pickPromotionCharacter();
+                                  String? char = await GameDialogs.showPromotion(controller.myColor.value == 'w');
                                   if (char == null) return null;
                                   switch (char) {
                                     case 'q': return PieceType.queen;
@@ -247,23 +260,6 @@ class GameView extends StatelessWidget {
       onPressed: onPressed,
       icon: Icon(icon, size: 32),
       color: onPressed != null ? Colors.black : Colors.grey,
-    );
-  }
-
-  void _showDialog(BuildContext context, String title, String middleText, String confirmText, Color btnColor, VoidCallback onConfirm) {
-    Get.defaultDialog(
-      title: title,
-      titleStyle: const TextStyle(color: Color(0xFF5D4037), fontWeight: FontWeight.bold),
-      middleText: middleText,
-      textConfirm: confirmText,
-      textCancel: "Cancel",
-      buttonColor: btnColor,
-      confirmTextColor: Colors.white,
-      cancelTextColor: const Color(0xFF5D4037),
-      onConfirm: () {
-        Get.back();
-        onConfirm();
-      }
     );
   }
 }

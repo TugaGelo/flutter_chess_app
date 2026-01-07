@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:chess_vectors_flutter/chess_vectors_flutter.dart';
 import '../views/lobby_view.dart';
-import '../controllers/sound_controller.dart';
 
 class GameDialogs {
   
