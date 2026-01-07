@@ -6,6 +6,7 @@ import 'dart:math';
 import '../controllers/auth_controller.dart';
 import '../views/lobby_view.dart';
 import '../controllers/sound_controller.dart';
+import '../utils/chess_utils.dart';
 import 'package:chess_vectors_flutter/chess_vectors_flutter.dart';
 
 class GameController extends GetxController {
@@ -71,50 +72,10 @@ class GameController extends GetxController {
       Map<String, dynamic>? lastMoveData = data['lastMove'];
       String? winner = data['winner']; 
       
-      if (data.containsKey('movesLeft')) {
-        movesLeft.value = data['movesLeft'];
-      }
+      if (data.containsKey('movesLeft')) movesLeft.value = data['movesLeft'];
 
       List<dynamic> serverMoves = data['moves'] ?? [];
-      List<String> groupedMoves = [];
-      String currentGroup = "";
-      String lastColor = "";
-
-      for (var moveObj in serverMoves) {
-        String rawMove = moveObj.toString();
-        String colorPrefix = "";
-        String cleanMove = rawMove;
-
-        if (rawMove.length > 2 && rawMove[1] == ':') {
-          colorPrefix = rawMove.substring(0, 1);
-          cleanMove = rawMove.substring(2);
-        }
-
-        if (colorPrefix == 'w') {
-          cleanMove = cleanMove.replaceAll('K', '♔').replaceAll('Q', '♕').replaceAll('R', '♖').replaceAll('B', '♗').replaceAll('N', '♘');
-        } else if (colorPrefix == 'b') {
-          cleanMove = cleanMove.replaceAll('K', '♔').replaceAll('Q', '♕').replaceAll('R', '♜').replaceAll('B', '♝').replaceAll('N', '♞');
-        }
-
-        if (cleanMove == "Pass") {
-           if (currentGroup.isNotEmpty) groupedMoves.add(currentGroup);
-           groupedMoves.add("Pass");
-           currentGroup = "";
-           lastColor = colorPrefix == 'w' ? 'b' : 'w';
-           continue;
-        }
-
-        if (colorPrefix == lastColor && colorPrefix.isNotEmpty) {
-          if (currentGroup.isNotEmpty) currentGroup += ", ";
-          currentGroup += cleanMove;
-        } else {
-          if (currentGroup.isNotEmpty) groupedMoves.add(currentGroup);
-          currentGroup = cleanMove;
-          lastColor = colorPrefix;
-        }
-      }
-      if (currentGroup.isNotEmpty) groupedMoves.add(currentGroup);
-      moveHistorySan.assignAll(groupedMoves);
+      moveHistorySan.assignAll(ChessUtils.parseServerMoves(serverMoves));
 
       gameMode.value = data['mode'] ?? 'classical';
       
@@ -124,22 +85,15 @@ class GameController extends GetxController {
         currentDice.clear();
       }
 
+      _reconstructGameHistory(serverMoves);
+
       if (serverMoves.isEmpty && movesLeft.value == 0) {
          if (gameMode.value == 'vegas') movesLeft.value = 1;
          if (gameMode.value == 'boa') movesLeft.value = 3; 
       }
 
-      if (serverFen == chess_lib.Chess.DEFAULT_POSITION && serverMoves.isEmpty && fenHistory.isEmpty) {
-        SoundController.instance.playGameStart(); 
-      }
-
       if (serverFen == chess_lib.Chess.DEFAULT_POSITION && serverMoves.isEmpty) {
-        if (isGameEnded.value) { Get.back(); isGameEnded.value = false; }
-        gameOverMessage.value = '';
-        _chess.reset();
-        fenHistory.clear();
-        moveHistorySan.clear();
-        currentMoveIndex.value = -1;
+        if (_lastProcessedFen == '') SoundController.instance.playGameStart();
       }
 
       if (_lastProcessedFen == serverFen && winner == null) return;
@@ -152,20 +106,14 @@ class GameController extends GetxController {
         if (lastMoveData['from'] != 'pass' && lastMoveData['from'] != lastMoveData['to']) {
            await _triggerAnimation(lastMoveData['from'], lastMoveData['to'], serverFen);
            if (!_chess.game_over) {
-               if (_chess.in_check) {
-                  SoundController.instance.playCheck();
-               } 
-               else if (serverMoves.isNotEmpty && serverMoves.last.toString().contains('x')) {
-                  SoundController.instance.playCapture(); 
-               } 
-               else {
-                  SoundController.instance.playOpponentMove(); 
-               }
+               if (_chess.in_check) SoundController.instance.playCheck();
+               else if (serverMoves.isNotEmpty && serverMoves.last.toString().contains('x')) SoundController.instance.playCapture();
+               else SoundController.instance.playOpponentMove();
            }
         }
       }
 
-      _updateHistoryAndUI(serverFen);
+      _updateUI(serverFen);
 
       if (isMyTurn.value) {
         if (gameMode.value == 'dice' || gameMode.value == 'boa') {
@@ -194,6 +142,43 @@ class GameController extends GetxController {
     });
   }
 
+  void _reconstructGameHistory(List<dynamic> serverMoves) {
+    final tempGame = chess_lib.Chess();
+    tempGame.reset();
+    List<String> reconstructedHistory = [chess_lib.Chess.DEFAULT_POSITION];
+    
+    for (var moveStr in serverMoves) {
+       String cleanMove = moveStr.toString();
+       if (cleanMove.contains(':')) cleanMove = cleanMove.split(':')[1];
+       
+       if (cleanMove == 'Pass') {
+          String currentFen = tempGame.fen;
+          List<String> parts = currentFen.split(' ');
+          parts[1] = parts[1] == 'w' ? 'b' : 'w'; 
+          parts[3] = '-'; 
+          if (parts[1] == 'w') {
+             try { parts[5] = (int.parse(parts[5]) + 1).toString(); } catch(e) {}
+          }
+          String newFen = parts.join(' ');
+          tempGame.load(newFen); 
+          reconstructedHistory.add(newFen);
+       } else {
+          try {
+             tempGame.move(cleanMove);
+             reconstructedHistory.add(tempGame.fen);
+          } catch (e) {
+             print("Error replaying move: $cleanMove");
+          }
+       }
+    }
+    
+    fenHistory.assignAll(reconstructedHistory);
+    
+    if (currentMoveIndex.value == -1 || currentMoveIndex.value >= fenHistory.length - 2) {
+       currentMoveIndex.value = fenHistory.length - 1;
+    }
+  }
+
   void _checkDiceLegalMoves() {
     final tempGame = chess_lib.Chess();
     tempGame.load(_chess.fen);
@@ -205,7 +190,7 @@ class GameController extends GetxController {
       if (move is Map) type = move['piece']; 
       else type = move.piece; 
       
-      int diceValue = _getPieceDiceValue(type);
+      int diceValue = ChessUtils.getPieceDiceValue(type);
       if (currentDice.contains(diceValue)) {
         foundLegalMove = true;
         break; 
@@ -244,14 +229,7 @@ class GameController extends GetxController {
     }
   }
 
-  void _updateHistoryAndUI(String serverFen) {
-    if (fenHistory.isEmpty || fenHistory.last != serverFen) {
-        fenHistory.add(serverFen);
-        if (currentMoveIndex.value == fenHistory.length - 2 || currentMoveIndex.value == -1) {
-           jumpToLatest();
-        }
-    }
-
+  void _updateUI(String serverFen) {
     if (currentMoveIndex.value == fenHistory.length - 1 || currentMoveIndex.value == -1) {
         displayFen.value = serverFen;
     }
@@ -265,9 +243,7 @@ class GameController extends GetxController {
         validMoveHighlights[kingSquare] = Colors.red.withOpacity(0.6);
       }
     } else {
-      if (_selectedSquare == null) {
-        validMoveHighlights.clear();
-      }
+      if (_selectedSquare == null) validMoveHighlights.clear();
     }
 
     isMyTurn.value = (_chess.turn == chess_lib.Color.WHITE && myColor.value == 'w') ||
@@ -276,15 +252,20 @@ class GameController extends GetxController {
 
   Future<void> makeMove({required String from, required String to, String? promotion, bool isTap = false}) async {
     if (isGameEnded.value) return; 
-    if (currentMoveIndex.value != fenHistory.length - 1) return;
+    
+    if (currentMoveIndex.value != fenHistory.length - 1) {
+       Get.snackbar("History Mode", "Jump to the latest move to play.", 
+         snackPosition: SnackPosition.BOTTOM, duration: const Duration(seconds: 1));
+       return;
+    }
+    
     if (!isMyTurn.value) return;
 
     int pieceValue = 0; 
-
     if (gameMode.value == 'dice' || gameMode.value == 'boa') {
       final piece = _chess.get(from);
       if (piece != null) {
-        pieceValue = _getPieceDiceValue(piece.type);
+        pieceValue = ChessUtils.getPieceDiceValue(piece.type);
         if (!currentDice.contains(pieceValue)) {
           Get.snackbar("Invalid Move", "Must match dice!", snackPosition: SnackPosition.BOTTOM, duration: const Duration(seconds: 1));
           return;
@@ -308,25 +289,19 @@ class GameController extends GetxController {
       if (success) {
         if (!_chess.game_over) {
             bool isCheck = _chess.in_check; 
-            if (isCheck) {
-               SoundController.instance.playCheck();
-            } else if (isCapture) {
-               SoundController.instance.playCapture();
-            } else {
-               SoundController.instance.playMove();
-            }
+            if (isCheck) SoundController.instance.playCheck();
+            else if (isCapture) SoundController.instance.playCapture();
+            else SoundController.instance.playMove();
         }
 
         String pgn = _chess.pgn();
         List<String> pgnTokens = pgn.split(' ').where((t) => t.trim().isNotEmpty && !t.contains('.')).toList();
         String moveSan = pgnTokens.isNotEmpty ? pgnTokens.last : '';
-        
         if (['1-0', '0-1', '1/2-1/2', '*'].contains(moveSan) && pgnTokens.length > 1) {
            moveSan = pgnTokens[pgnTokens.length - 2];
         }
 
         String signedMove = "${myColor.value}:$moveSan"; 
-
         String finalFen = _chess.fen;
         int nextMovesLeft = 0;
         List<int> nextDice = List.from(currentDice);
@@ -337,9 +312,7 @@ class GameController extends GetxController {
         displayFen.value = finalFen; 
 
         if (gameMode.value == 'boa') {
-          if (nextDice.contains(pieceValue)) {
-            nextDice.remove(pieceValue); 
-          }
+          if (nextDice.contains(pieceValue)) nextDice.remove(pieceValue);
           
           int current = movesLeft.value > 0 ? movesLeft.value : 1;
           nextMovesLeft = current - 1;
@@ -357,7 +330,6 @@ class GameController extends GetxController {
             parts[1] = myColor.value; 
             parts[3] = '-'; 
             finalFen = parts.join(' ');
-            
             _chess.load(finalFen);
             displayFen.value = finalFen;
           } else {
@@ -382,7 +354,6 @@ class GameController extends GetxController {
             parts[1] = myColor.value;
             parts[3] = '-';
             finalFen = parts.join(' ');
-            
             _chess.load(finalFen);
             displayFen.value = finalFen;
           } else {
@@ -455,7 +426,6 @@ class GameController extends GetxController {
 
   Future<void> passTurn() async {
     if (!isMyTurn.value) return;
-    
     if (gameMode.value == 'classical' || gameMode.value == 'vegas') return;
     
     _checkDiceLegalMoves();
@@ -472,23 +442,14 @@ class GameController extends GetxController {
       fenParts[1] = fenParts[1] == 'w' ? 'b' : 'w'; 
       if (fenParts.length >= 6) {
         try {
-          if (fenParts[1] == 'w') {
-            fenParts[5] = (int.parse(fenParts[5]) + 1).toString();
-          }
+          if (fenParts[1] == 'w') fenParts[5] = (int.parse(fenParts[5]) + 1).toString();
         } catch (e) {}
       }
     }
     String newFen = fenParts.join(' ');
 
-    List<int> nextDice = [];
-    int nextMovesLeft = 0;
-
-    if (gameMode.value == 'boa') {
-       nextMovesLeft = 3; 
-       nextDice = [Random().nextInt(6)+1, Random().nextInt(6)+1, Random().nextInt(6)+1];
-    } else {
-       nextDice = [Random().nextInt(6)+1, Random().nextInt(6)+1, Random().nextInt(6)+1];
-    }
+    List<int> nextDice = [Random().nextInt(6)+1, Random().nextInt(6)+1, Random().nextInt(6)+1];
+    int nextMovesLeft = (gameMode.value == 'boa') ? 3 : 0;
 
     clearHighlights();
     
@@ -500,18 +461,6 @@ class GameController extends GetxController {
       'movesLeft': nextMovesLeft
     });
   }
-
-  int _getPieceDiceValue(chess_lib.PieceType type) {
-    switch (type) {
-      case chess_lib.PieceType.PAWN: return 1;
-      case chess_lib.PieceType.KNIGHT: return 2;
-      case chess_lib.PieceType.BISHOP: return 3;
-      case chess_lib.PieceType.ROOK: return 4;
-      case chess_lib.PieceType.QUEEN: return 5;
-      case chess_lib.PieceType.KING: return 6;
-      default: return 0;
-    }
-  }
   
   void onSquareTap(String square) {
     if (isGameEnded.value) return; 
@@ -521,33 +470,33 @@ class GameController extends GetxController {
          return;
        }
     }
+    
     final piece = _chess.get(square);
     bool isMyPiece = piece != null && 
                      ((myColor.value == 'w' && piece.color == chess_lib.Color.WHITE) ||
                       (myColor.value == 'b' && piece.color == chess_lib.Color.BLACK));
+                      
     if (isMyPiece) {
       _selectedSquare = square;
       if (gameMode.value == 'dice' || gameMode.value == 'boa') {
-         int val = _getPieceDiceValue(piece.type);
-         if (!currentDice.contains(val)) {
-            return;
-         }
+         int val = ChessUtils.getPieceDiceValue(piece.type);
+         if (!currentDice.contains(val)) return;
       }
+      
       final moves = _chess.moves({'square': square, 'verbose': true});
       final newHighlights = <String, Color>{};
+      
       if (_chess.in_check) {
         String? kingSquare = _findKingSquare(_chess.turn);
-        if (kingSquare != null) {
-          newHighlights[kingSquare] = Colors.red.withOpacity(0.6);
-        }
+        if (kingSquare != null) newHighlights[kingSquare] = Colors.red.withOpacity(0.6);
       }
+      
       newHighlights[square] = const Color(0xFF64B5F6).withOpacity(0.6); 
       for (var move in moves) {
         String targetSquare = move['to']; 
         newHighlights[targetSquare] = const Color(0xFF81C784).withOpacity(0.6); 
       }
       validMoveHighlights.assignAll(newHighlights);
-      validMoveHighlights.refresh(); 
     } else {
       clearHighlights();
     }
@@ -571,9 +520,7 @@ class GameController extends GetxController {
       for (var rank in ranks) {
         String square = '$file$rank';
         final piece = _chess.get(square);
-        if (piece != null && 
-            piece.type == chess_lib.PieceType.KING && 
-            piece.color == color) {
+        if (piece != null && piece.type == chess_lib.PieceType.KING && piece.color == color) {
           return square;
         }
       }
@@ -583,15 +530,11 @@ class GameController extends GetxController {
   
   Future<void> resignGame() async {
     String winner = myColor.value == 'w' ? 'b' : 'w';
-    await _db.collection('games').doc(gameId.value).update({
-      'winner': winner
-    });
+    await _db.collection('games').doc(gameId.value).update({'winner': winner});
   }
 
   Future<void> declareDraw() async {
-    await _db.collection('games').doc(gameId.value).update({
-      'winner': 'draw'
-    });
+    await _db.collection('games').doc(gameId.value).update({'winner': 'draw'});
   }
 
   Future<void> triggerRematch() async {

@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:simple_chess_board/simple_chess_board.dart';
-import 'package:chess_vectors_flutter/chess_vectors_flutter.dart';
 import '../controllers/game_controller.dart';
 import '../widgets/board_overlay.dart';
 import '../utils/board_geometry.dart';
+import '../utils/chess_utils.dart';
+import '../widgets/game/dice_row.dart';
+import '../widgets/game/move_list_bar.dart';
 
 class GameView extends StatelessWidget {
   const GameView({super.key});
@@ -39,115 +41,30 @@ class GameView extends StatelessWidget {
         foregroundColor: themeBrown,
         actions: [
           IconButton(
-            onPressed: () {
-              Get.defaultDialog(
-                title: "Offer Draw?",
-                titleStyle: const TextStyle(color: themeBrown, fontWeight: FontWeight.bold),
-                middleText: "Declare the game as a draw?",
-                textConfirm: "Declare Draw",
-                textCancel: "Cancel",
-                buttonColor: themeBrown,
-                confirmTextColor: Colors.white,
-                cancelTextColor: themeBrown,
-                onConfirm: () {
-                  Get.back();
-                  controller.declareDraw();
-                }
-              );
-            },
+            onPressed: () => _showDialog(context, "Offer Draw?", "Declare the game as a draw?", "Declare Draw", themeBrown, controller.declareDraw),
             icon: const Icon(Icons.handshake),
-            tooltip: "Draw",
           ),
           IconButton(
-            onPressed: () {
-              Get.defaultDialog(
-                title: "Resign?",
-                titleStyle: const TextStyle(color: themeBrown, fontWeight: FontWeight.bold),
-                middleText: "Are you sure you want to give up?",
-                textConfirm: "Yes, Resign",
-                textCancel: "Cancel",
-                buttonColor: Colors.redAccent,
-                confirmTextColor: Colors.white,
-                cancelTextColor: themeBrown,
-                onConfirm: () {
-                  Get.back();
-                  controller.resignGame();
-                }
-              );
-            },
+            onPressed: () => _showDialog(context, "Resign?", "Are you sure you want to give up?", "Yes, Resign", Colors.redAccent, controller.resignGame),
             icon: const Icon(Icons.flag),
-            tooltip: "Resign",
           ),
           const SizedBox(width: 8),
         ],
       ),
       body: Column(
         children: [
-          Container(
-            height: 50,
-            decoration: BoxDecoration(color: Colors.grey[200]),
-            child: Obx(() {
-              int pairCount = (controller.moveHistorySan.length / 2).ceil();
-              return ListView.builder(
-                controller: moveListScrollController,
-                scrollDirection: Axis.horizontal,
-                itemCount: pairCount,
-                padding: const EdgeInsets.symmetric(horizontal: 10),
-                itemBuilder: (context, index) {
-                  int whiteMoveIndex = index * 2;
-                  int blackMoveIndex = (index * 2) + 1;
-                  bool hasBlackMove = blackMoveIndex < controller.moveHistorySan.length;
-
-                  return Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.only(left: 8, right: 4),
-                        child: Text(
-                          "${index + 1}.",
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold, 
-                            color: Colors.grey[700],
-                            fontSize: 16
-                          ),
-                        ),
-                      ),
-
-                      _buildMoveButton(
-                        text: controller.moveHistorySan[whiteMoveIndex],
-                        moveIndex: whiteMoveIndex,
-                        controller: controller
-                      ),
-
-                      if (hasBlackMove) ...[
-                        const SizedBox(width: 4),
-                        _buildMoveButton(
-                          text: controller.moveHistorySan[blackMoveIndex],
-                          moveIndex: blackMoveIndex,
-                          controller: controller
-                        ),
-                      ],
-                      
-                      const SizedBox(width: 12),
-                    ],
-                  );
-                },
-              );
-            }),
-          ),
+          MoveListBar(controller: controller, scrollController: moveListScrollController),
 
           Obx(() {
             if (controller.gameMode.value == 'dice' || controller.gameMode.value == 'boa') {
-              bool isOpponentActive = !controller.isMyTurn.value;
-              bool isOpponentWhite = controller.myColor.value == 'b'; 
-
               return Column(
                 children: [
                    const SizedBox(height: 5), 
-                   _buildDiceRow(
-                    isActive: isOpponentActive,
+                   DiceRow(
+                    isActive: !controller.isMyTurn.value,
                     diceValues: controller.currentDice, 
                     isBottom: false,
-                    isWhitePieces: isOpponentWhite,
+                    isWhitePieces: controller.myColor.value == 'b',
                     controller: controller,
                   ),
                 ],
@@ -267,7 +184,7 @@ class GameView extends StatelessWidget {
                                   left: ghostLeft,
                                   width: squareSize,
                                   height: squareSize,
-                                  child: _getPieceWidget(controller.animPieceChar.value),
+                                  child: ChessUtils.getPieceWidget(controller.animPieceChar.value),
                                 ),
                             ],
                           ),
@@ -282,17 +199,14 @@ class GameView extends StatelessWidget {
 
           Obx(() {
             if (controller.gameMode.value == 'dice' || controller.gameMode.value == 'boa') {
-              bool isMyRowActive = controller.isMyTurn.value;
-              bool amIWhite = controller.myColor.value == 'w'; 
-
               return Column(
                 children: [
                   const SizedBox(height: 5),
-                  _buildDiceRow(
-                    isActive: isMyRowActive,
+                  DiceRow(
+                    isActive: controller.isMyTurn.value,
                     diceValues: controller.currentDice,
                     isBottom: true,
-                    isWhitePieces: amIWhite,
+                    isWhitePieces: controller.myColor.value == 'w',
                     controller: controller,
                   ),
                 ],
@@ -316,26 +230,10 @@ class GameView extends StatelessWidget {
             child: Obx(() => Row(
               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
               children: [
-                IconButton(
-                  onPressed: controller.currentMoveIndex.value > 0 
-                      ? controller.jumpToStart : null, 
-                  icon: const Icon(Icons.first_page, size: 32),
-                ),
-                IconButton(
-                  onPressed: controller.currentMoveIndex.value > 0 
-                      ? controller.goToPrevious : null,
-                  icon: const Icon(Icons.chevron_left, size: 32),
-                ),
-                IconButton(
-                  onPressed: controller.currentMoveIndex.value < controller.fenHistory.length - 1 
-                      ? controller.goToNext : null,
-                  icon: const Icon(Icons.chevron_right, size: 32),
-                ),
-                IconButton(
-                  onPressed: controller.currentMoveIndex.value < controller.fenHistory.length - 1 
-                      ? controller.jumpToLatest : null,
-                  icon: const Icon(Icons.last_page, size: 32),
-                ),
+                _navBtn(Icons.first_page, controller.currentMoveIndex.value > 0 ? controller.jumpToStart : null),
+                _navBtn(Icons.chevron_left, controller.currentMoveIndex.value > 0 ? controller.goToPrevious : null),
+                _navBtn(Icons.chevron_right, controller.currentMoveIndex.value < controller.fenHistory.length - 1 ? controller.goToNext : null),
+                _navBtn(Icons.last_page, controller.currentMoveIndex.value < controller.fenHistory.length - 1 ? controller.jumpToLatest : null),
               ],
             )),
           ),
@@ -344,157 +242,28 @@ class GameView extends StatelessWidget {
     );
   }
 
-  Widget _buildDiceRow({
-    required bool isActive,
-    required List<int> diceValues,
-    required bool isBottom,
-    required bool isWhitePieces,
-    required GameController controller,
-  }) {
-    const Color activeBorder = Color(0xFFB58863); 
-    const Color activeBg = Color(0xFFF0D9B5);     
-    const Color inactiveColor = Colors.grey;
-
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: 10),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          for (int i = 0; i < 3; i++)
-            Container(
-              width: 40,
-              height: 40,
-              margin: const EdgeInsets.symmetric(horizontal: 4),
-              decoration: BoxDecoration(
-                color: (isActive && i < diceValues.length) ? activeBg : Colors.grey[200],
-                border: Border.all(
-                  color: (isActive && i < diceValues.length) ? activeBorder : inactiveColor,
-                  width: 2
-                ),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Center(
-                child: (isActive && i < diceValues.length)
-                    ? SizedBox(
-                        width: 28,
-                        height: 28,
-                        child: _getPieceWidgetForDice(diceValues[i], isWhitePieces),
-                      )
-                    : null, 
-              ),
-            ),
-
-          if (isBottom && isActive && !controller.canMakeAnyMove.value)
-             Padding(
-               padding: const EdgeInsets.only(left: 10),
-               child: ElevatedButton(
-                 onPressed: () => controller.passTurn(),
-                 style: ElevatedButton.styleFrom(
-                   backgroundColor: activeBorder, 
-                   foregroundColor: Colors.white
-                 ),
-                 child: const Text("PASS", style: TextStyle(fontWeight: FontWeight.bold)),
-               ),
-             )
-        ],
-      ),
+  Widget _navBtn(IconData icon, VoidCallback? onPressed) {
+    return IconButton(
+      onPressed: onPressed,
+      icon: Icon(icon, size: 32),
+      color: onPressed != null ? Colors.black : Colors.grey,
     );
   }
 
-  Widget _getPieceWidgetForDice(int val, bool isWhite) {
-    if (isWhite) {
-      switch(val) {
-        case 1: return WhitePawn();
-        case 2: return WhiteKnight();
-        case 3: return WhiteBishop();
-        case 4: return WhiteRook();
-        case 5: return WhiteQueen();
-        case 6: return WhiteKing();
-        default: return const SizedBox();
+  void _showDialog(BuildContext context, String title, String middleText, String confirmText, Color btnColor, VoidCallback onConfirm) {
+    Get.defaultDialog(
+      title: title,
+      titleStyle: const TextStyle(color: Color(0xFF5D4037), fontWeight: FontWeight.bold),
+      middleText: middleText,
+      textConfirm: confirmText,
+      textCancel: "Cancel",
+      buttonColor: btnColor,
+      confirmTextColor: Colors.white,
+      cancelTextColor: const Color(0xFF5D4037),
+      onConfirm: () {
+        Get.back();
+        onConfirm();
       }
-    } else {
-      switch(val) {
-        case 1: return BlackPawn();
-        case 2: return BlackKnight();
-        case 3: return BlackBishop();
-        case 4: return BlackRook();
-        case 5: return BlackQueen();
-        case 6: return BlackKing();
-        default: return const SizedBox();
-      }
-    }
-  }
-  
-  Widget _getPieceWidget(String char) {
-    switch (char) {
-      case 'P': return WhitePawn();
-      case 'N': return WhiteKnight();
-      case 'B': return WhiteBishop();
-      case 'R': return WhiteRook();
-      case 'Q': return WhiteQueen();
-      case 'K': return WhiteKing();
-      case 'p': return BlackPawn();
-      case 'n': return BlackKnight();
-      case 'b': return BlackBishop();
-      case 'r': return BlackRook();
-      case 'q': return BlackQueen();
-      case 'k': return BlackKing();
-      default: return const SizedBox();
-    }
-  }
-
-  Widget _buildMoveButton({
-    required String text, 
-    required int moveIndex, 
-    required GameController controller
-  }) {
-    return Obx(() {
-      bool isSelected = moveIndex == (controller.currentMoveIndex.value - 1);
-      
-      if (text == "Pass") {
-        return Container(
-           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-           decoration: BoxDecoration(
-             color: isSelected ? const Color(0xFFb58863) : Colors.transparent, 
-             borderRadius: BorderRadius.circular(4)
-           ),
-           child: Row(
-             children: [
-               Icon(Icons.block, size: 14, color: isSelected ? Colors.white : Colors.red[700]),
-               const SizedBox(width: 4),
-               Text(
-                 "Pass", 
-                 style: TextStyle(
-                   color: isSelected ? Colors.white : Colors.red[700], 
-                   fontWeight: FontWeight.bold,
-                   fontSize: 14
-                 )
-               ),
-             ],
-           ),
-         );
-      }
-
-      return InkWell(
-        onTap: () {},
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-          decoration: BoxDecoration(
-            color: isSelected 
-                ? const Color(0xFFb58863)
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(4),
-          ),
-          child: Text(
-            text,
-            style: TextStyle(
-              color: isSelected ? Colors.white : Colors.black87,
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              fontSize: 14,
-            ),
-          ),
-        ),
-      );
-    });
+    );
   }
 }
