@@ -7,6 +7,7 @@ import '../controllers/auth_controller.dart';
 import '../controllers/sound_controller.dart';
 import '../utils/chess_utils.dart';
 import '../utils/game_dialogs.dart';
+import '../utils/chess_rule_engine.dart';
 import '../mixins/history_navigation_mixin.dart';
 
 class GameController extends GetxController with HistoryNavigationMixin {
@@ -115,8 +116,14 @@ class GameController extends GetxController with HistoryNavigationMixin {
       _updateUI(serverFen);
 
       if (isMyTurn.value) {
-        if (gameMode.value == 'dice' || gameMode.value == 'boa') _checkDiceLegalMoves();
-        else canMakeAnyMove.value = true;
+        if (gameMode.value == 'dice' || gameMode.value == 'boa') {
+          canMakeAnyMove.value = ChessRuleEngine.canMakeAnyDiceMove(_chess, currentDice);
+          if (!canMakeAnyMove.value && _chess.in_check) {
+             _handleCheckmateByBadLuck();
+          }
+        } else {
+          canMakeAnyMove.value = true;
+        }
       }
 
       if (!isGameEnded.value) {
@@ -136,6 +143,12 @@ class GameController extends GetxController with HistoryNavigationMixin {
         }
       }
     });
+  }
+
+  void _handleCheckmateByBadLuck() {
+    Get.snackbar("Checkmate!", "Bad luck! Your dice cannot save the King.", 
+      backgroundColor: Colors.red, colorText: Colors.white, duration: const Duration(seconds: 4));
+    Future.delayed(const Duration(seconds: 3), () => resignGame());
   }
 
   void _reconstructGameHistory(List<dynamic> serverMoves) {
@@ -175,32 +188,6 @@ class GameController extends GetxController with HistoryNavigationMixin {
     }
   }
 
-  void _checkDiceLegalMoves() {
-    final tempGame = chess_lib.Chess();
-    tempGame.load(_chess.fen);
-    List<dynamic> allMoves = tempGame.moves({'asObjects': true});
-    bool foundLegalMove = false;
-    
-    for (var move in allMoves) {
-      chess_lib.PieceType type;
-      if (move is Map) type = move['piece']; 
-      else type = move.piece; 
-      
-      int diceValue = ChessUtils.getPieceDiceValue(type);
-      if (currentDice.contains(diceValue)) {
-        foundLegalMove = true;
-        break; 
-      }
-    }
-    canMakeAnyMove.value = foundLegalMove;
-    
-    if (!foundLegalMove && isMyTurn.value && _chess.in_check) {
-      Get.snackbar("Checkmate!", "Bad luck! Your dice cannot save the King.", 
-        backgroundColor: Colors.red, colorText: Colors.white, duration: const Duration(seconds: 4));
-      Future.delayed(const Duration(seconds: 3), () => resignGame());
-    }
-  }
-
   Future<void> _triggerAnimation(String from, String to, String targetFen) async {
     final tempGame = chess_lib.Chess();
     tempGame.load(targetFen);
@@ -231,7 +218,7 @@ class GameController extends GetxController with HistoryNavigationMixin {
     isWhiteTurn.value = _chess.turn == chess_lib.Color.WHITE;
 
     if (_chess.in_check) {
-      String? kingSquare = _findKingSquare(_chess.turn);
+      String? kingSquare = ChessRuleEngine.findKingSquare(_chess, _chess.turn);
       if (kingSquare != null) {
         validMoveHighlights[kingSquare] = Colors.red.withOpacity(0.6);
       }
@@ -241,6 +228,52 @@ class GameController extends GetxController with HistoryNavigationMixin {
 
     isMyTurn.value = (_chess.turn == chess_lib.Color.WHITE && myColor.value == 'w') ||
                      (_chess.turn == chess_lib.Color.BLACK && myColor.value == 'b');
+  }
+
+  void onSquareTap(String square) {
+    if (isGameEnded.value) return; 
+    
+    if (validMoveHighlights.containsKey(square) && validMoveHighlights[square] != Colors.red.withOpacity(0.6)) {
+       if (validMoveHighlights[square]!.value == const Color(0xFF81C784).withOpacity(0.6).value) {
+         makeMove(from: _selectedSquare!, to: square, isTap: true);
+         return;
+       }
+    }
+    
+    final piece = _chess.get(square);
+    bool isMyPiece = piece != null && 
+                     ((myColor.value == 'w' && piece.color == chess_lib.Color.WHITE) ||
+                      (myColor.value == 'b' && piece.color == chess_lib.Color.BLACK));
+                      
+    if (isMyPiece) {
+      _selectedSquare = square;
+      
+      Map<String, Color> newHighlights = ChessRuleEngine.getHighlights(
+        chess: _chess, 
+        square: square, 
+        isDiceMode: (gameMode.value == 'dice' || gameMode.value == 'boa'), 
+        currentDice: currentDice
+      );
+      
+      if (newHighlights.isNotEmpty) {
+         validMoveHighlights.assignAll(newHighlights);
+      } else {
+         clearHighlights();
+      }
+    } else {
+      clearHighlights();
+    }
+  }
+
+  void clearHighlights() {
+    validMoveHighlights.clear();
+    _selectedSquare = null;
+    if (_chess.in_check) {
+      String? kingSquare = ChessRuleEngine.findKingSquare(_chess, _chess.turn);
+      if (kingSquare != null) {
+        validMoveHighlights[kingSquare] = Colors.red.withOpacity(0.6);
+      }
+    }
   }
 
   Future<void> makeMove({required String from, required String to, String? promotion, bool isTap = false}) async {
@@ -266,7 +299,7 @@ class GameController extends GetxController with HistoryNavigationMixin {
       }
     }
 
-    if (promotion == null && _isPromotion(from, to)) {
+    if (promotion == null && ChessRuleEngine.isPromotion(_chess, from, to)) {
       promotion = await GameDialogs.showPromotion(myColor.value == 'w');
       if (promotion == null) return; 
     }
@@ -377,20 +410,11 @@ class GameController extends GetxController with HistoryNavigationMixin {
     }
   }
 
-  bool _isPromotion(String from, String to) {
-    final piece = _chess.get(from);
-    if (piece == null || piece.type != chess_lib.PieceType.PAWN) return false;
-    if (piece.color == chess_lib.Color.WHITE && to.endsWith('8')) return true;
-    if (piece.color == chess_lib.Color.BLACK && to.endsWith('1')) return true;
-    return false;
-  }
-
   Future<void> passTurn() async {
     if (!isMyTurn.value) return;
     if (gameMode.value == 'classical' || gameMode.value == 'vegas') return;
     
-    _checkDiceLegalMoves();
-    if (canMakeAnyMove.value) {
+    if (ChessRuleEngine.canMakeAnyDiceMove(_chess, currentDice)) {
        Get.snackbar("Cannot Pass", "You have legal moves! You must play.", 
          backgroundColor: Colors.red, colorText: Colors.white);
        return;
@@ -398,7 +422,6 @@ class GameController extends GetxController with HistoryNavigationMixin {
 
     String currentFen = _chess.fen;
     List<String> fenParts = currentFen.split(' ');
-    
     if (fenParts.length >= 2) {
       fenParts[1] = fenParts[1] == 'w' ? 'b' : 'w'; 
       if (fenParts.length >= 6) {
@@ -421,73 +444,6 @@ class GameController extends GetxController with HistoryNavigationMixin {
       'lastMove': {'from': 'pass', 'to': 'pass', 'by': myColor.value},
       'movesLeft': nextMovesLeft
     });
-  }
-  
-  void onSquareTap(String square) {
-    if (isGameEnded.value) return; 
-    
-    if (validMoveHighlights.containsKey(square) && validMoveHighlights[square] != Colors.red.withOpacity(0.6)) {
-       if (validMoveHighlights[square]!.value == const Color(0xFF81C784).withOpacity(0.6).value) {
-         makeMove(from: _selectedSquare!, to: square, isTap: true);
-         return;
-       }
-    }
-    
-    final piece = _chess.get(square);
-    bool isMyPiece = piece != null && 
-                     ((myColor.value == 'w' && piece.color == chess_lib.Color.WHITE) ||
-                      (myColor.value == 'b' && piece.color == chess_lib.Color.BLACK));
-                      
-    if (isMyPiece) {
-      _selectedSquare = square;
-      if (gameMode.value == 'dice' || gameMode.value == 'boa') {
-         int val = ChessUtils.getPieceDiceValue(piece.type);
-         if (!currentDice.contains(val)) return;
-      }
-      
-      final moves = _chess.moves({'square': square, 'verbose': true});
-      final newHighlights = <String, Color>{};
-      
-      if (_chess.in_check) {
-        String? kingSquare = _findKingSquare(_chess.turn);
-        if (kingSquare != null) newHighlights[kingSquare] = Colors.red.withOpacity(0.6);
-      }
-      
-      newHighlights[square] = const Color(0xFF64B5F6).withOpacity(0.6); 
-      for (var move in moves) {
-        String targetSquare = move['to']; 
-        newHighlights[targetSquare] = const Color(0xFF81C784).withOpacity(0.6); 
-      }
-      validMoveHighlights.assignAll(newHighlights);
-    } else {
-      clearHighlights();
-    }
-  }
-
-  void clearHighlights() {
-    validMoveHighlights.clear();
-    _selectedSquare = null;
-    if (_chess.in_check) {
-      String? kingSquare = _findKingSquare(_chess.turn);
-      if (kingSquare != null) {
-        validMoveHighlights[kingSquare] = Colors.red.withOpacity(0.6);
-      }
-    }
-  }
-  
-  String? _findKingSquare(chess_lib.Color color) {
-    final files = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'];
-    final ranks = ['1', '2', '3', '4', '5', '6', '7', '8'];
-    for (var file in files) {
-      for (var rank in ranks) {
-        String square = '$file$rank';
-        final piece = _chess.get(square);
-        if (piece != null && piece.type == chess_lib.PieceType.KING && piece.color == color) {
-          return square;
-        }
-      }
-    }
-    return null;
   }
   
   Future<void> resignGame() async {
