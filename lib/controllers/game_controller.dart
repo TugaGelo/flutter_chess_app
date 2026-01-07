@@ -4,12 +4,12 @@ import 'package:get/get.dart';
 import 'package:chess/chess.dart' as chess_lib;
 import 'dart:math';
 import '../controllers/auth_controller.dart';
-import '../views/lobby_view.dart';
 import '../controllers/sound_controller.dart';
 import '../utils/chess_utils.dart';
-import 'package:chess_vectors_flutter/chess_vectors_flutter.dart';
+import '../utils/game_dialogs.dart';
+import '../mixins/history_navigation_mixin.dart';
 
-class GameController extends GetxController {
+class GameController extends GetxController with HistoryNavigationMixin {
   static GameController instance = Get.find();
   final FirebaseFirestore _db = FirebaseFirestore.instance;
 
@@ -36,11 +36,14 @@ class GameController extends GetxController {
   RxMap<String, Color> validMoveHighlights = <String, Color>{}.obs;
   String? _selectedSquare;
 
+  @override
   RxString displayFen = ''.obs; 
+  @override
   RxList<String> fenHistory = <String>[].obs; 
-  RxList<String> moveHistorySan = <String>[].obs; 
+  @override
   RxInt currentMoveIndex = (-1).obs;
-
+  
+  RxList<String> moveHistorySan = <String>[].obs; 
   final chess_lib.Chess _chess = chess_lib.Chess();
 
   void setGame(String id, String assignedColor) {
@@ -61,7 +64,6 @@ class GameController extends GetxController {
   void _connectToGameStream() {
     _db.collection('games').doc(gameId.value).snapshots().listen((snapshot) async {
       if (!snapshot.exists) return;
-
       var data = snapshot.data() as Map<String, dynamic>;
       
       String myUid = AuthController.instance.user!.uid;
@@ -79,11 +81,8 @@ class GameController extends GetxController {
 
       gameMode.value = data['mode'] ?? 'classical';
       
-      if (data['dice'] != null) {
-        currentDice.assignAll(List<int>.from(data['dice']));
-      } else {
-        currentDice.clear();
-      }
+      if (data['dice'] != null) currentDice.assignAll(List<int>.from(data['dice']));
+      else currentDice.clear();
 
       _reconstructGameHistory(serverMoves);
 
@@ -116,26 +115,23 @@ class GameController extends GetxController {
       _updateUI(serverFen);
 
       if (isMyTurn.value) {
-        if (gameMode.value == 'dice' || gameMode.value == 'boa') {
-          _checkDiceLegalMoves();
-        } else {
-          canMakeAnyMove.value = true;
-        }
+        if (gameMode.value == 'dice' || gameMode.value == 'boa') _checkDiceLegalMoves();
+        else canMakeAnyMove.value = true;
       }
 
       if (!isGameEnded.value) {
         if (winner != null) {
            SoundController.instance.playGameEnd(); 
-           if (winner == 'draw') _showGameOverDialog("Game Drawn", "by mutual agreement");
+           if (winner == 'draw') GameDialogs.showGameOver("Game Drawn", "by mutual agreement", triggerRematch);
            else _handleResignation(winner);
         } else if (_chess.in_checkmate) {
            SoundController.instance.playGameEnd(); 
            String winnerColor = _chess.turn == chess_lib.Color.WHITE ? "Black" : "White";
-           _showGameOverDialog("$winnerColor Won", "by checkmate");
+           GameDialogs.showGameOver("$winnerColor Won", "by checkmate", triggerRematch);
            if (winner == null) _db.collection('games').doc(gameId.value).update({'winner': winnerColor == "White" ? 'w' : 'b'});
         } else if (_chess.in_draw || _chess.in_stalemate) {
            SoundController.instance.playGameEnd(); 
-           _showGameOverDialog("Draw", "by stalemate");
+           GameDialogs.showGameOver("Draw", "by stalemate", triggerRematch);
            if (winner == null) _db.collection('games').doc(gameId.value).update({'winner': 'draw'});
         }
       }
@@ -212,11 +208,8 @@ class GameController extends GetxController {
     
     if (piece != null) {
       animPieceChar.value = piece.type.toString(); 
-      if (piece.color == chess_lib.Color.WHITE) {
-        animPieceChar.value = animPieceChar.value.toUpperCase();
-      } else {
-        animPieceChar.value = animPieceChar.value.toLowerCase();
-      }
+      if (piece.color == chess_lib.Color.WHITE) animPieceChar.value = animPieceChar.value.toUpperCase();
+      else animPieceChar.value = animPieceChar.value.toLowerCase();
       
       animStartSquare.value = from;
       animEndSquare.value = from;
@@ -274,7 +267,7 @@ class GameController extends GetxController {
     }
 
     if (promotion == null && _isPromotion(from, to)) {
-      promotion = await pickPromotionCharacter();
+      promotion = await GameDialogs.showPromotion(myColor.value == 'w');
       if (promotion == null) return; 
     }
 
@@ -392,38 +385,6 @@ class GameController extends GetxController {
     return false;
   }
 
-  Future<String?> pickPromotionCharacter() async {
-    bool isWhite = myColor.value == 'w';
-    return await Get.dialog<String>(
-      SimpleDialog(
-        title: const Text('Promote to:', textAlign: TextAlign.center),
-        backgroundColor: const Color(0xFFF0D9B5),
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _promoOption('q', isWhite ? WhiteQueen() : BlackQueen()),
-              _promoOption('r', isWhite ? WhiteRook() : BlackRook()),
-              _promoOption('b', isWhite ? WhiteBishop() : BlackBishop()),
-              _promoOption('n', isWhite ? WhiteKnight() : BlackKnight()),
-            ],
-          )
-        ],
-      ),
-      barrierDismissible: false,
-    );
-  }
-
-  Widget _promoOption(String char, Widget icon) {
-    return InkWell(
-      onTap: () => Get.back(result: char),
-      child: Padding(
-        padding: const EdgeInsets.all(8.0),
-        child: SizedBox(width: 50, height: 50, child: icon),
-      ),
-    );
-  }
-
   Future<void> passTurn() async {
     if (!isMyTurn.value) return;
     if (gameMode.value == 'classical' || gameMode.value == 'vegas') return;
@@ -464,6 +425,7 @@ class GameController extends GetxController {
   
   void onSquareTap(String square) {
     if (isGameEnded.value) return; 
+    
     if (validMoveHighlights.containsKey(square) && validMoveHighlights[square] != Colors.red.withOpacity(0.6)) {
        if (validMoveHighlights[square]!.value == const Color(0xFF81C784).withOpacity(0.6).value) {
          makeMove(from: _selectedSquare!, to: square, isTap: true);
@@ -562,94 +524,6 @@ class GameController extends GetxController {
 
   void _handleResignation(String winnerColor) {
     String title = winnerColor == 'w' ? "White Won" : "Black Won";
-    _showGameOverDialog(title, "by resignation");
-  }
-
-  void _showGameOverDialog(String title, String subtitle) {
-    isGameEnded.value = true;
-    Get.defaultDialog(
-      title: title,
-      titleStyle: const TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: Color(0xFF5D4037)),
-      backgroundColor: const Color(0xFFF0D9B5),
-      radius: 12,
-      content: Column(
-        children: [
-          const Icon(Icons.emoji_events, size: 60, color: Color(0xFFB58863)),
-          const SizedBox(height: 12),
-          Text(subtitle, style: const TextStyle(fontSize: 18, color: Color(0xFF5D4037), fontWeight: FontWeight.w500)),
-          const SizedBox(height: 24),
-        ],
-      ),
-      barrierDismissible: false, 
-      actions: [
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              OutlinedButton(
-                onPressed: () => Get.offAll(() => const LobbyView()),
-                style: OutlinedButton.styleFrom(
-                  side: const BorderSide(color: Color(0xFF5D4037), width: 2),
-                  foregroundColor: const Color(0xFF5D4037),
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                ),
-                child: const Text("Lobby", style: TextStyle(fontWeight: FontWeight.bold)),
-              ),
-              const SizedBox(width: 10),
-              ElevatedButton.icon(
-                onPressed: () {
-                  Get.back();
-                  isGameEnded.value = false;
-                  triggerRematch();
-                },
-                icon: const Icon(Icons.refresh, color: Colors.white),
-                label: const Text("Rematch", style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFB58863),
-                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                  elevation: 4,
-                ),
-              ),
-            ],
-          ),
-        )
-      ]
-    );
-  }
-
-  void jumpToLatest() {
-    if (fenHistory.isEmpty) return;
-    currentMoveIndex.value = fenHistory.length - 1;
-    displayFen.value = fenHistory.last;
-  }
-
-  void goToPrevious() {
-    if (currentMoveIndex.value > 0) {
-      currentMoveIndex.value--;
-      displayFen.value = fenHistory[currentMoveIndex.value];
-    }
-  }
-
-  void goToNext() {
-    if (currentMoveIndex.value < fenHistory.length - 1) {
-      currentMoveIndex.value++;
-      displayFen.value = fenHistory[currentMoveIndex.value];
-    }
-  }
-
-  void jumpToStart() {
-    if (fenHistory.isNotEmpty) {
-      currentMoveIndex.value = 0;
-      displayFen.value = fenHistory[0];
-    }
-  }
-
-  void jumpToMove(int index) {
-    int target = index + 1;
-    if (target < fenHistory.length) {
-      currentMoveIndex.value = target;
-      displayFen.value = fenHistory[target];
-    }
+    GameDialogs.showGameOver(title, "by resignation", triggerRematch);
   }
 }
