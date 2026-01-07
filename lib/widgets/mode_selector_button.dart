@@ -120,10 +120,10 @@ class ModeSelectorButton extends StatelessWidget {
         content = "Roll 3 Dice each turn!\n\nYou can ONLY move pieces that match the dice values:\n\n♙ Pawn: 1\n♘ Knight: 2\n♗ Bishop: 3\n♖ Rook: 4\n♕ Queen: 5\n♔ King: 6\n\nIf you have no legal moves, you must Pass.";
         break;
       case 'vegas':
-        content = "High Stakes, variable moves!\n\nRoll 1 Die to determine your turn:\n\n🎲 1-2 = 1 Move\n🎲 3-4 = 2 Moves\n🎲 5-6 = 3 Moves\n\nPlan your combos carefully!";
+        content = "High Stakes, variable moves!\n\nRoll 1 Die to determine your turn:\n\n🎲 1-2 = 1 Move\n🎲 3-4 = 2 Moves\n🎲 5-6 = 3 Moves\n\n⚠️ IMPORTANT: If you Check your opponent, your turn ends immediately, even if you had moves left!";
         break;
       case 'boa':
-        content = "The Ultimate Chaos!\n\n• You ALWAYS get 3 Dice & 3 Moves.\n• You must use the dice to move specific pieces.\n• You can pass if stuck, but try to use all 3!";
+        content = "The Ultimate Chaos!\n\n• You ALWAYS get 3 Dice & 3 Moves.\n• You must use the dice to move specific pieces.\n• You can pass if stuck, but try to use all 3!\n\n⚠️ IMPORTANT: If you Check your opponent, your turn ends immediately!";
         break;
     }
 
