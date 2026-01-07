@@ -9,8 +9,10 @@ class MatchmakingController extends GetxController {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
   
   RxString searchingMode = ''.obs;
+  String? currentMatchmakingDocId;
 
   Future<void> startMatchmaking(String gameMode) async {
+    if (searchingMode.value.isNotEmpty) return;
     searchingMode.value = gameMode;
     
     String myUid = AuthController.instance.user!.uid;
@@ -28,8 +30,6 @@ class MatchmakingController extends GetxController {
         var gameDoc = snapshot.docs.first;
         String gameId = gameDoc.id;
         String whiteName = gameDoc['whiteName'] ?? "Opponent";
-
-        print("Found $gameMode game! Joining $gameId");
 
         await _db.collection('matchmaking').doc(gameId).update({
           'status': 'playing',
@@ -62,23 +62,35 @@ class MatchmakingController extends GetxController {
           'mode': gameMode,
           'createdAt': FieldValue.serverTimestamp(),
         });
-
+        
+        currentMatchmakingDocId = docRef.id;
         _waitForOpponent(docRef.id);
       }
 
     } catch (e) {
-      print("Error in matchmaking: $e");
       searchingMode.value = '';
     }
   }
 
+  Future<void> cancelMatchmaking() async {
+    if (currentMatchmakingDocId != null) {
+      try {
+        await _db.collection('matchmaking').doc(currentMatchmakingDocId).delete();
+        print("Cancelled matchmaking room: $currentMatchmakingDocId");
+      } catch (e) {
+        print("Error deleting room: $e");
+      }
+      currentMatchmakingDocId = null;
+    }
+    searchingMode.value = '';
+  }
+
   void _waitForOpponent(String docId) {
     _db.collection('matchmaking').doc(docId).snapshots().listen((snapshot) {
-      if (!snapshot.exists) return;
-      var data = snapshot.data() as Map<String, dynamic>;
+      if (!snapshot.exists || searchingMode.value == '') return;
       
+      var data = snapshot.data() as Map<String, dynamic>;
       if (data['status'] == 'playing') {
-        print("Player joined! Starting game...");
         GameController.instance.setGame(docId, 'w');
         _goToGameScreen();
       }
@@ -86,7 +98,6 @@ class MatchmakingController extends GetxController {
   }
 
   Future<void> _createGameRecord(String gameId, String whiteId, String blackId, String whiteName, String blackName, String mode) async {
-    
     List<int> initialDice = [];
     if (mode == 'dice' || mode == 'boa') {
       Random rng = Random();
@@ -119,6 +130,7 @@ class MatchmakingController extends GetxController {
 
   void _goToGameScreen() {
     searchingMode.value = '';
+    currentMatchmakingDocId = null;
     Get.to(() => const GameView());
   }
 }

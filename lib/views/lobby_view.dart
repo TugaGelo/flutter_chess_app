@@ -181,16 +181,26 @@ class LobbyView extends StatelessWidget {
               bool isAnyLoading = controller.searchingMode.value.isNotEmpty;
 
               return ElevatedButton(
-                onPressed: isAnyLoading ? null : () => controller.startMatchmaking(mode),
+                onPressed: isLoadingThis 
+                    ? () => controller.cancelMatchmaking() 
+                    : (isAnyLoading ? null : () => controller.startMatchmaking(mode)),
+                
                 style: ElevatedButton.styleFrom(
-                  backgroundColor: color,
+                  backgroundColor: isLoadingThis ? Colors.redAccent : color,
                   foregroundColor: Colors.white,
                   elevation: 3,
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
                   padding: EdgeInsets.zero,
                 ),
                 child: isLoadingThis 
-                    ? const SizedBox(width: 24, height: 24, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                    ? const Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)),
+                          SizedBox(width: 12),
+                          Text("Cancel", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                        ],
+                      )
                     : Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
@@ -210,10 +220,13 @@ class LobbyView extends StatelessWidget {
             right: 0,
             top: 0,
             bottom: 0,
-            child: IconButton(
-              icon: const Icon(Icons.info_outline, color: Colors.white70),
-              tooltip: "Rules",
-              onPressed: () => _showRulesDialog(mode, label),
+            child: Obx(() => controller.searchingMode.value == mode 
+              ? const SizedBox()
+              : IconButton(
+                  icon: const Icon(Icons.info_outline, color: Colors.white70),
+                  tooltip: "Rules",
+                  onPressed: () => _showRulesDialog(mode, label),
+                )
             ),
           )
         ],
