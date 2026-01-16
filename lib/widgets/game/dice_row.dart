@@ -44,12 +44,12 @@ class DiceRow extends StatelessWidget {
               ),
               child: Center(
                 child: (isActive && i < diceValues.length)
-                    ? SizedBox(
-                        width: 28,
-                        height: 28,
-                        child: _getPieceWidgetForDice(diceValues[i]),
-                      )
-                    : null,
+                  ? SizedBox(
+                    width: 28,
+                    height: 28,
+                    child: _getPieceWidgetForDice(diceValues[i]),
+                  )
+                : null,
               ),
             ),
 

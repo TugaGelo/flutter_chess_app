@@ -20,19 +20,19 @@ class BoardOverlay extends StatelessWidget {
           String fileText = "";
           
           if (col == 0) {
-             int rankNum = isBlackAtBottom ? (row + 1) : (8 - row);
-             rankText = rankNum.toString();
+            int rankNum = isBlackAtBottom ? (row + 1) : (8 - row);
+            rankText = rankNum.toString();
           }
 
           if (row == 7) {
-             int charCode = isBlackAtBottom ? ('h'.codeUnitAt(0) - col) : ('a'.codeUnitAt(0) + col);
-             fileText = String.fromCharCode(charCode);
+            int charCode = isBlackAtBottom ? ('h'.codeUnitAt(0) - col) : ('a'.codeUnitAt(0) + col);
+            fileText = String.fromCharCode(charCode);
           }
 
           bool isLightSquare = (row + col) % 2 == 0;
           Color textColor = isLightSquare 
-              ? const Color(0xFFB58863)
-              : const Color(0xFFF0D9B5);
+            ? const Color(0xFFB58863)
+            : const Color(0xFFF0D9B5);
 
           return Stack(
             children: [

@@ -11,7 +11,6 @@ class UserModel {
     required this.username,
   });
 
-  // Convert our User object to a JSON map (for sending to Firebase)
   Map<String, dynamic> toJson() {
     return {
       'uid': uid,
@@ -20,7 +19,6 @@ class UserModel {
     };
   }
 
-  // Create a User object from a Firestore snapshot (for receiving from Firebase)
   factory UserModel.fromSnap(DocumentSnapshot snap) {
     var snapshot = snap.data() as Map<String, dynamic>;
     return UserModel(

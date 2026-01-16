@@ -47,8 +47,8 @@ class HistoryView extends StatelessWidget {
             
             String dateText = "Unknown Date";
             if (data['date'] != null) {
-               DateTime dt = (data['date'] as Timestamp).toDate();
-               dateText = DateFormat.yMMMd().add_jm().format(dt);
+              DateTime dt = (data['date'] as Timestamp).toDate();
+              dateText = DateFormat.yMMMd().add_jm().format(dt);
             }
 
             Color statusColor;

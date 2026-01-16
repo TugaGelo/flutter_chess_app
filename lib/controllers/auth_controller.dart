@@ -28,9 +28,9 @@ class AuthController extends GetxController {
     } else {
       try {
         DocumentSnapshot snap = await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .get();
+          .collection('users')
+          .doc(user.uid)
+          .get();
         
         if (snap.exists) {
           firestoreUser.value = model.UserModel.fromSnap(snap);
@@ -59,9 +59,9 @@ class AuthController extends GetxController {
       );
 
       await FirebaseFirestore.instance
-          .collection('users')
-          .doc(cred.user!.uid)
-          .set(userModel.toJson());
+        .collection('users')
+        .doc(cred.user!.uid)
+        .set(userModel.toJson());
       
       firestoreUser.value = userModel;
 

@@ -56,9 +56,9 @@ class ChessRuleEngine {
     final newHighlights = <String, Color>{};
 
     if (isDiceMode) {
-       if (!isMoveLegalForDice(chess, square, currentDice)) {
-          return {};
-       }
+      if (!isMoveLegalForDice(chess, square, currentDice)) {
+        return {};
+      }
     }
 
     final moves = chess.moves({'square': square, 'verbose': true});

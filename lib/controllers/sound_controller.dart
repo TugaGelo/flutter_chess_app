@@ -3,8 +3,8 @@ import 'package:get/get.dart';
 
 class SoundController extends GetxController {
   static SoundController get instance => Get.isRegistered<SoundController>() 
-      ? Get.find() 
-      : Get.put(SoundController());
+                                       ? Get.find() 
+                                       : Get.put(SoundController());
 
   final AudioPlayer _uiPlayer = AudioPlayer();
   final AudioPlayer _gamePlayer = AudioPlayer();

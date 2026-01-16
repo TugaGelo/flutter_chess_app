@@ -88,8 +88,8 @@ class GameController extends GetxController with HistoryNavigationMixin {
       _reconstructGameHistory(serverMoves);
 
       if (serverMoves.isEmpty && movesLeft.value == 0) {
-         if (gameMode.value == 'vegas') movesLeft.value = 1;
-         if (gameMode.value == 'boa') movesLeft.value = 3; 
+        if (gameMode.value == 'vegas') movesLeft.value = 1;
+        if (gameMode.value == 'boa') movesLeft.value = 3; 
       }
 
       if (serverFen == chess_lib.Chess.DEFAULT_POSITION && serverMoves.isEmpty) {
@@ -104,11 +104,11 @@ class GameController extends GetxController with HistoryNavigationMixin {
       bool isOpponentMove = lastMoveData != null && lastMoveData['by'] != myColor.value;
       if (isOpponentMove && lastMoveData != null && !isAnimating.value) {
         if (lastMoveData['from'] != 'pass' && lastMoveData['from'] != lastMoveData['to']) {
-           await _triggerAnimation(lastMoveData['from'], lastMoveData['to'], serverFen);
-           if (!_chess.game_over) {
-               if (_chess.in_check) SoundController.instance.playCheck();
-               else if (serverMoves.isNotEmpty && serverMoves.last.toString().contains('x')) SoundController.instance.playCapture();
-               else SoundController.instance.playOpponentMove();
+          await _triggerAnimation(lastMoveData['from'], lastMoveData['to'], serverFen);
+          if (!_chess.game_over) {
+            if (_chess.in_check) SoundController.instance.playCheck();
+            else if (serverMoves.isNotEmpty && serverMoves.last.toString().contains('x')) SoundController.instance.playCapture();
+            else SoundController.instance.playOpponentMove();
            }
         }
       }
@@ -119,7 +119,7 @@ class GameController extends GetxController with HistoryNavigationMixin {
         if (gameMode.value == 'dice' || gameMode.value == 'boa') {
           canMakeAnyMove.value = ChessRuleEngine.canMakeAnyDiceMove(_chess, currentDice);
           if (!canMakeAnyMove.value && _chess.in_check) {
-             _handleCheckmateByBadLuck();
+            _handleCheckmateByBadLuck();
           }
         } else {
           canMakeAnyMove.value = true;
@@ -128,18 +128,18 @@ class GameController extends GetxController with HistoryNavigationMixin {
 
       if (!isGameEnded.value) {
         if (winner != null) {
-           SoundController.instance.playGameEnd(); 
-           if (winner == 'draw') GameDialogs.showGameOver("Game Drawn", "by mutual agreement", triggerRematch);
-           else _handleResignation(winner);
+          SoundController.instance.playGameEnd(); 
+          if (winner == 'draw') GameDialogs.showGameOver("Game Drawn", "by mutual agreement", triggerRematch);
+          else _handleResignation(winner);
         } else if (_chess.in_checkmate) {
-           SoundController.instance.playGameEnd(); 
-           String winnerColor = _chess.turn == chess_lib.Color.WHITE ? "Black" : "White";
-           GameDialogs.showGameOver("$winnerColor Won", "by checkmate", triggerRematch);
-           if (winner == null) _db.collection('games').doc(gameId.value).update({'winner': winnerColor == "White" ? 'w' : 'b'});
+          SoundController.instance.playGameEnd(); 
+          String winnerColor = _chess.turn == chess_lib.Color.WHITE ? "Black" : "White";
+          GameDialogs.showGameOver("$winnerColor Won", "by checkmate", triggerRematch);
+          if (winner == null) _db.collection('games').doc(gameId.value).update({'winner': winnerColor == "White" ? 'w' : 'b'});
         } else if (_chess.in_draw || _chess.in_stalemate) {
-           SoundController.instance.playGameEnd(); 
-           GameDialogs.showGameOver("Draw", "by stalemate", triggerRematch);
-           if (winner == null) _db.collection('games').doc(gameId.value).update({'winner': 'draw'});
+          SoundController.instance.playGameEnd(); 
+          GameDialogs.showGameOver("Draw", "by stalemate", triggerRematch);
+          if (winner == null) _db.collection('games').doc(gameId.value).update({'winner': 'draw'});
         }
       }
     });
@@ -157,26 +157,26 @@ class GameController extends GetxController with HistoryNavigationMixin {
     List<String> reconstructedHistory = [chess_lib.Chess.DEFAULT_POSITION];
     
     for (var moveStr in serverMoves) {
-       String cleanMove = moveStr.toString();
-       if (cleanMove.contains(':')) cleanMove = cleanMove.split(':')[1];
+      String cleanMove = moveStr.toString();
+      if (cleanMove.contains(':')) cleanMove = cleanMove.split(':')[1];
        
-       if (cleanMove == 'Pass') {
-          String currentFen = tempGame.fen;
-          List<String> parts = currentFen.split(' ');
-          parts[1] = parts[1] == 'w' ? 'b' : 'w'; 
-          parts[3] = '-'; 
-          if (parts[1] == 'w') {
-             try { parts[5] = (int.parse(parts[5]) + 1).toString(); } catch(e) {}
-          }
-          String newFen = parts.join(' ');
-          tempGame.load(newFen); 
-          reconstructedHistory.add(newFen);
+      if (cleanMove == 'Pass') {
+        String currentFen = tempGame.fen;
+        List<String> parts = currentFen.split(' ');
+        parts[1] = parts[1] == 'w' ? 'b' : 'w'; 
+        parts[3] = '-'; 
+        if (parts[1] == 'w') {
+          try { parts[5] = (int.parse(parts[5]) + 1).toString(); } catch(e) {}
+        }
+        String newFen = parts.join(' ');
+        tempGame.load(newFen); 
+        reconstructedHistory.add(newFen);
        } else {
           try {
-             tempGame.move(cleanMove);
-             reconstructedHistory.add(tempGame.fen);
+            tempGame.move(cleanMove);
+            reconstructedHistory.add(tempGame.fen);
           } catch (e) {
-             print("Error replaying move: $cleanMove");
+            print("Error replaying move: $cleanMove");
           }
        }
     }
@@ -184,7 +184,7 @@ class GameController extends GetxController with HistoryNavigationMixin {
     fenHistory.assignAll(reconstructedHistory);
     
     if (currentMoveIndex.value == -1 || currentMoveIndex.value >= fenHistory.length - 2) {
-       currentMoveIndex.value = fenHistory.length - 1;
+      currentMoveIndex.value = fenHistory.length - 1;
     }
   }
 
@@ -211,7 +211,7 @@ class GameController extends GetxController with HistoryNavigationMixin {
 
   void _updateUI(String serverFen) {
     if (currentMoveIndex.value == fenHistory.length - 1 || currentMoveIndex.value == -1) {
-        displayFen.value = serverFen;
+      displayFen.value = serverFen;
     }
     
     fen.value = serverFen;
@@ -234,10 +234,10 @@ class GameController extends GetxController with HistoryNavigationMixin {
     if (isGameEnded.value) return; 
     
     if (validMoveHighlights.containsKey(square) && validMoveHighlights[square] != Colors.red.withOpacity(0.6)) {
-       if (validMoveHighlights[square]!.value == const Color(0xFF81C784).withOpacity(0.6).value) {
-         makeMove(from: _selectedSquare!, to: square, isTap: true);
-         return;
-       }
+      if (validMoveHighlights[square]!.value == const Color(0xFF81C784).withOpacity(0.6).value) {
+        makeMove(from: _selectedSquare!, to: square, isTap: true);
+        return;
+      }
     }
     
     final piece = _chess.get(square);
@@ -256,9 +256,9 @@ class GameController extends GetxController with HistoryNavigationMixin {
       );
       
       if (newHighlights.isNotEmpty) {
-         validMoveHighlights.assignAll(newHighlights);
+        validMoveHighlights.assignAll(newHighlights);
       } else {
-         clearHighlights();
+        clearHighlights();
       }
     } else {
       clearHighlights();
@@ -280,9 +280,9 @@ class GameController extends GetxController with HistoryNavigationMixin {
     if (isGameEnded.value) return; 
     
     if (currentMoveIndex.value != fenHistory.length - 1) {
-       Get.snackbar("History Mode", "Jump to the latest move to play.", 
-         snackPosition: SnackPosition.BOTTOM, duration: const Duration(seconds: 1));
-       return;
+      Get.snackbar("History Mode", "Jump to the latest move to play.", 
+        snackPosition: SnackPosition.BOTTOM, duration: const Duration(seconds: 1));
+      return;
     }
     
     if (!isMyTurn.value) return;
@@ -324,7 +324,7 @@ class GameController extends GetxController with HistoryNavigationMixin {
         List<String> pgnTokens = pgn.split(' ').where((t) => t.trim().isNotEmpty && !t.contains('.')).toList();
         String moveSan = pgnTokens.isNotEmpty ? pgnTokens.last : '';
         if (['1-0', '0-1', '1/2-1/2', '*'].contains(moveSan) && pgnTokens.length > 1) {
-           moveSan = pgnTokens[pgnTokens.length - 2];
+          moveSan = pgnTokens[pgnTokens.length - 2];
         }
 
         String signedMove = "${myColor.value}:$moveSan"; 
@@ -346,8 +346,8 @@ class GameController extends GetxController with HistoryNavigationMixin {
           if (_chess.in_check || _chess.in_checkmate) {
             nextMovesLeft = 0;
             if (_chess.in_check) {
-               Get.snackbar("Check!", "Turn ends immediately!", 
-                 backgroundColor: Colors.red, colorText: Colors.white, duration: const Duration(seconds: 2));
+              Get.snackbar("Check!", "Turn ends immediately!", 
+                backgroundColor: Colors.red, colorText: Colors.white, duration: const Duration(seconds: 2));
             }
           }
 
@@ -370,8 +370,8 @@ class GameController extends GetxController with HistoryNavigationMixin {
           if (_chess.in_check || _chess.in_checkmate) {
             nextMovesLeft = 0;
             if (_chess.in_check) {
-               Get.snackbar("Check!", "Turn ends immediately!", 
-                 backgroundColor: Colors.red, colorText: Colors.white, duration: const Duration(seconds: 2));
+              Get.snackbar("Check!", "Turn ends immediately!", 
+                backgroundColor: Colors.red, colorText: Colors.white, duration: const Duration(seconds: 2));
             }
           }
 
@@ -391,7 +391,7 @@ class GameController extends GetxController with HistoryNavigationMixin {
           }
         } 
         else if (gameMode.value == 'dice') {
-           nextDice = [Random().nextInt(6)+1, Random().nextInt(6)+1, Random().nextInt(6)+1];
+          nextDice = [Random().nextInt(6)+1, Random().nextInt(6)+1, Random().nextInt(6)+1];
         }
 
         await _db.collection('games').doc(gameId.value).update({
@@ -415,9 +415,9 @@ class GameController extends GetxController with HistoryNavigationMixin {
     if (gameMode.value == 'classical' || gameMode.value == 'vegas') return;
     
     if (ChessRuleEngine.canMakeAnyDiceMove(_chess, currentDice)) {
-       Get.snackbar("Cannot Pass", "You have legal moves! You must play.", 
-         backgroundColor: Colors.red, colorText: Colors.white);
-       return;
+      Get.snackbar("Cannot Pass", "You have legal moves! You must play.", 
+        backgroundColor: Colors.red, colorText: Colors.white);
+      return;
     }
 
     String currentFen = _chess.fen;

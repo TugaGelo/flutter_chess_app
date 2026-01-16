@@ -57,7 +57,7 @@ final List<ChessTerm> chessTerms = [
   ChessTerm(
     title: "Windmill",
     description: "A devastating series of discovered checks and captures, usually involving a Rook and Bishop.",
-    fen: "6k1/5ppp/8/8/8/8/1B6/R5K1 w - - 0 1", // Famous Torre vs Lasker pattern
+    fen: "6k1/5ppp/8/8/8/8/1B6/R5K1 w - - 0 1",
   ),
 
   // ===========================================================================

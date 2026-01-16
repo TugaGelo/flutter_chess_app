@@ -81,14 +81,14 @@ class GameView extends StatelessWidget {
               );
             }
             else if (controller.gameMode.value == 'vegas') {
-               bool isOpponentActive = !controller.isMyTurn.value;
-               return Container(
-                 height: 60,
-                 alignment: Alignment.center,
-                 child: isOpponentActive 
-                   ? Text("Opponent Moves: ${controller.movesLeft.value}", style: TextStyle(fontSize: 20, color: Colors.grey[600], fontWeight: FontWeight.bold))
-                   : const SizedBox(height: 60),
-               );
+              bool isOpponentActive = !controller.isMyTurn.value;
+              return Container(
+                height: 60,
+                alignment: Alignment.center,
+                child: isOpponentActive 
+                  ? Text("Opponent Moves: ${controller.movesLeft.value}", style: TextStyle(fontSize: 20, color: Colors.grey[600], fontWeight: FontWeight.bold))
+                  : const SizedBox(height: 60),
+              );
             }
             return const SizedBox(height: 60);
           }),
@@ -113,14 +113,14 @@ class GameView extends StatelessWidget {
               );
             }
             else if (controller.gameMode.value == 'vegas') {
-               bool isMyRowActive = controller.isMyTurn.value;
-               return Container(
-                 height: 60,
-                 alignment: Alignment.center,
-                 child: isMyRowActive 
-                   ? Text("Moves Left: ${controller.movesLeft.value}", style: TextStyle(fontSize: 24, color: Colors.green[800], fontWeight: FontWeight.bold))
-                   : const SizedBox(height: 60),
-               );
+              bool isMyRowActive = controller.isMyTurn.value;
+              return Container(
+                height: 60,
+                alignment: Alignment.center,
+                child: isMyRowActive 
+                  ? Text("Moves Left: ${controller.movesLeft.value}", style: TextStyle(fontSize: 24, color: Colors.green[800], fontWeight: FontWeight.bold))
+                  : const SizedBox(height: 60),
+              );
             }
             return const SizedBox(height: 60);
           }),

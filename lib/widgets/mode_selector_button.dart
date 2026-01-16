@@ -95,15 +95,15 @@ class ModeSelectorButton extends StatelessWidget {
             top: 0,
             bottom: 0,
             child: Obx(() => controller.searchingMode.value == mode
-                ? const SizedBox()
-                : IconButton(
-                    icon: const Icon(Icons.info_outline, color: Colors.white70),
-                    tooltip: "Rules",
-                    onPressed: () {
-                      SoundController.instance.playClick();
-                      _showRulesDialog();
-                    },
-                  )),
+              ? const SizedBox()
+              : IconButton(
+                icon: const Icon(Icons.info_outline, color: Colors.white70),
+                tooltip: "Rules",
+                onPressed: () {
+                  SoundController.instance.playClick();
+                  _showRulesDialog();
+                },
+              )),
           )
         ],
       ),

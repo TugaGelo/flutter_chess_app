@@ -16,11 +16,11 @@ class HistoryController extends GetxController {
 
   void _bindHistoryStream() {
     _db.collection('games')
-       .orderBy('date', descending: true)
-       .snapshots()
-       .listen((snapshot) {
-         allGames.assignAll(snapshot.docs);
-         isLoading.value = false;
+      .orderBy('date', descending: true)
+      .snapshots()
+      .listen((snapshot) {
+        allGames.assignAll(snapshot.docs);
+        isLoading.value = false;
     });
   }
   

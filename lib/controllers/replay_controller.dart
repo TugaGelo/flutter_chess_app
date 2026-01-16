@@ -29,32 +29,32 @@ class ReplayController extends GetxController {
     List<dynamic> rawMoves = gameData['moves'] ?? [];
         
     for (var moveObj in rawMoves) {
-       String cleanMove = moveObj.toString();
-       if (cleanMove.contains(':')) {
-         cleanMove = cleanMove.split(':')[1];
-       }
+      String cleanMove = moveObj.toString();
+      if (cleanMove.contains(':')) {
+        cleanMove = cleanMove.split(':')[1];
+      }
 
-       _addToMoveHistory(cleanMove);
+      _addToMoveHistory(cleanMove);
 
-       if (cleanMove == 'Pass') {
-          String currentFen = _chess.fen;
-          List<String> parts = currentFen.split(' ');
-          parts[1] = parts[1] == 'w' ? 'b' : 'w'; 
-          parts[3] = '-'; 
-          if (parts[1] == 'w') {
-             try { parts[5] = (int.parse(parts[5]) + 1).toString(); } catch(e) {}
-          }
-          String newFen = parts.join(' ');
-          _chess.load(newFen); 
-          fenHistory.add(newFen);
-       } else {
-          try {
-             _chess.move(cleanMove);
-             fenHistory.add(_chess.fen);
-          } catch (e) {
-             print("Replay Error: Could not parse move $cleanMove");
-          }
-       }
+      if (cleanMove == 'Pass') {
+        String currentFen = _chess.fen;
+        List<String> parts = currentFen.split(' ');
+        parts[1] = parts[1] == 'w' ? 'b' : 'w'; 
+        parts[3] = '-'; 
+        if (parts[1] == 'w') {
+          try { parts[5] = (int.parse(parts[5]) + 1).toString(); } catch(e) {}
+        }
+        String newFen = parts.join(' ');
+        _chess.load(newFen); 
+        fenHistory.add(newFen);
+      } else {
+        try {
+          _chess.move(cleanMove);
+          fenHistory.add(_chess.fen);
+        } catch (e) {
+          print("Replay Error: Could not parse move $cleanMove");
+        }
+      }
     }
     
     jumpToStart();
@@ -97,23 +97,23 @@ class ReplayController extends GetxController {
       tempBoard.load(currentFen);
       
       if (tempBoard.in_checkmate || tempBoard.in_stalemate || tempBoard.in_draw) {
-         SoundController.instance.playGameEnd();
+        SoundController.instance.playGameEnd();
       } 
       else {
-         int moveListIndex = currentMoveIndex.value - 1;
-         if (moveListIndex >= 0 && moveListIndex < moveHistorySan.length) {
-             String moveSan = moveHistorySan[moveListIndex];
+        int moveListIndex = currentMoveIndex.value - 1;
+        if (moveListIndex >= 0 && moveListIndex < moveHistorySan.length) {
+          String moveSan = moveHistorySan[moveListIndex];
              
-             if (moveSan.contains('+')) {
-                SoundController.instance.playCheck();
-             } else if (moveSan.contains('x')) {
-                SoundController.instance.playCapture();
-             } else {
-                SoundController.instance.playMove();
-             }
-         } else {
-             SoundController.instance.playMove();
-         }
+          if (moveSan.contains('+')) {
+            SoundController.instance.playCheck();
+          } else if (moveSan.contains('x')) {
+            SoundController.instance.playCapture();
+          } else {
+            SoundController.instance.playMove();
+          }
+        } else {
+          SoundController.instance.playMove();
+        }
       }
     }
   }
